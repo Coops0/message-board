@@ -14,6 +14,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
                 <AutoReload options=options.clone() />
                 <HydrationScripts options/>
+                <Stylesheet id="leptos" href="/pkg/message-board.css"/>
                 <MetaTags/>
             </head>
             <body>
@@ -29,7 +30,6 @@ pub fn App() -> impl IntoView {
     provide_meta_context();
 
     view! {
-        <link rel="stylesheet" id="leptos" href="/pkg/message-board.css"/>
         <Title text="Message Board"/>
 
         <Router>
