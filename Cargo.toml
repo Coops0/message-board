@@ -9,32 +9,45 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 leptos = { version = "0.7.0", features = ["nightly"] }
 leptos_router = { version = "0.7.0", features = ["nightly"] }
-axum = { version = "0.7.9", optional = true }
+axum = { version = "0.7.9", features = ["macros"], optional = true }
+axum-macros = { version = "0.5.0-alpha.1", optional = true }
 console_error_panic_hook = "0.1.7"
 leptos_axum = { version = "0.7.0", optional = true }
 leptos_meta = { version = "0.7.0" }
-tokio = { version = "1.41.1", features = ["rt-multi-thread"], optional = true }
+tokio = { version = "1.42.0", features = ["rt-multi-thread"], optional = true }
 tower = { version = "0.5.1", optional = true }
 tower-http = { version = "0.6.2", features = ["fs"], optional = true }
 wasm-bindgen = "0.2.97"
-thiserror = "2.0.3"
 tracing = { version = "0.1.41", optional = true }
-http = "1.1.0"
-leptos-use = "0.14.0"
+# leptos-use = "0.14.0"
+
+sqlx = { version = "0.8.2", default-features = false, features = ["macros", "migrate", "runtime-tokio", "runtime-tokio-rustls", "postgres", "migrate","uuid"], optional = true }
+uuid = { version = "1.11.0", default-features = false, features = ["serde", "v4"]}
+#anyhow = { version = "1.0.94", optional = true }
+dotenvy = { version = "0.15.7", optional = true }
+
+[dependencies.server_fn]
+version = "0.7.0"
+features = ["postcard"]
 
 [features]
 hydrate = ["leptos/hydrate"]
 ssr = [
     "dep:axum",
+    "dep:axum-macros",
     "dep:tokio",
     "dep:tower",
     "dep:tower-http",
     "dep:leptos_axum",
     "leptos/ssr",
-    "leptos-use/ssr",
+  #  "leptos-use/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
     "dep:tracing",
+    "dep:sqlx",
+    "dep:uuid",
+#    "dep:anyhow",
+    "dep:dotenvy",
 ]
 
 # Defines a size-optimized profile for the WASM bundle in release mode

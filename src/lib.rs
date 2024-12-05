@@ -1,4 +1,12 @@
 pub mod app;
+pub mod messages;
+
+#[cfg(feature = "ssr")]
+#[derive(Clone, axum::extract::FromRef)]
+pub struct AppState {
+    pub pool: sqlx::PgPool,
+    pub leptos_options: leptos::config::LeptosOptions,
+}
 
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]
