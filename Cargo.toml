@@ -8,7 +8,7 @@ axum = { version = "0.7.9" }
 tokio = { version = "1.42.0", features = ["full"] }
 tracing = "0.1.41"
 serde = { version = "1.0.215" }
-sqlx = { version = "0.8.2", default-features = false, features = ["macros", "migrate", "runtime-tokio", "runtime-tokio-rustls", "postgres", "migrate", "uuid"] }
+sqlx = { version = "0.8.2", default-features = false, features = ["macros", "migrate", "runtime-tokio", "runtime-tokio-rustls", "postgres", "migrate", "uuid", "chrono"] }
 uuid = { version = "1.11.0", features = ["serde", "v4", "fast-rng"] }
 anyhow = "1.0.94"
 dotenvy = "0.15.7"
