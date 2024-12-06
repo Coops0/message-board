@@ -14,5 +14,5 @@ anyhow = "1.0.94"
 dotenvy = "0.15.7"
 chrono = { version = "0.4.38", features = ["serde"] }
 askama = { version = "0.12.1", features = ["with-axum"] }
-memory-serve = "1.0.0-beta.0"
+memory-serve = { version = "0.6.0" }
 askama_axum = "0.4.0"
