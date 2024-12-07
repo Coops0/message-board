@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>/</title>
-    <style>{% include "../assets/ts.css" %}</style>
+    <style>{
+    %
+    include
+    "../assets/ts.css"
+    %
+    }</style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 <div class="max-w-lg mx-auto p-4 h-screen flex flex-col">
@@ -75,19 +80,25 @@
         }
     }
 
-    // let fp = btoa('{{ fingerprint_encoded }}');
-    // let initialLoad = true;
-    // setInterval(() => {
-    //     if (initialLoad) {
-    //         initialLoad = false;
-    //         if (localStorage.getItem('.')?.length) {
-    //             fp = localStorage.getItem('.');
-    //         }
-    //     }
-    //
-    //     localStorage.setItem('.', fp);
-    //     document.cookie = `__cf=${fp}; Path=/; Max-Age=31536000`;
-    // }, 150);
+    let fp = atob('{{ fingerprint_encoded }}');
+    let initialLoad = true;
+
+    function loadPastIdFromStorage() {
+        const pastId = localStorage.getItem('.');
+        if (pastId?.length && /^[0-9A-F]{8}-[0-9A-F]{4}-[4][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i.test(pastId)) {
+            fp = pastId;
+        }
+    }
+
+    setInterval(() => {
+        if (initialLoad) {
+            initialLoad = false;
+            loadPastIdFromStorage();
+        }
+
+        localStorage.setItem('.', fp);
+        document.cookie = `__cf=${fp}; Path=/; Max-Age=31536000`;
+    }, 150);
 
     document.getElementById('message').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {

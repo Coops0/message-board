@@ -30,7 +30,7 @@ pub async fn index(
     Ok(MinifiedHtml(MessageTemplate {
         messages,
         fingerprint_encoded: base64::engine::general_purpose::STANDARD
-            .encode(fingerprint.id.as_bytes()),
+            .encode(fingerprint.id.to_string().as_bytes()), // convert to string for proper encoding
     }))
 }
 
