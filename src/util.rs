@@ -60,7 +60,7 @@ impl<H: Template> IntoResponse for MinifiedHtml<H> {
                 keep_comments: false,
                 keep_input_type_text_attr: false,
                 keep_ssi_comments: false,
-                preserve_brace_template_syntax: true,
+                preserve_brace_template_syntax: false,
                 preserve_chevron_percent_template_syntax: false,
                 minify_css: true,
                 minify_js: true,

@@ -2,59 +2,98 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>/</title>
     <style>{% include "../assets/ts.css" %}</style>
 </head>
-<body>
-<div class="text-red-500">
-    <div class="messages">
-        {% for message in messages %}
-        <p>{{ message.content|e }}</p>
-        {% endfor %}
+<body class="bg-gray-50 min-h-screen">
+<div class="max-w-lg mx-auto p-4 h-screen flex flex-col">
+    <div class="flex-1 overflow-y-auto space-y-3 py-4">
+        <div class="messages">
+            {% for message in messages %}
+            <div class="bg-white p-4 rounded-2xl shadow-sm transform transition-all duration-200">
+                <p class="text-gray-800">{{ message.content|e }}</p>
+            </div>
+            {% endfor %}
+        </div>
     </div>
 
-    <input type="text" name="message" id="message" class="border border-gray-400 p-2">
-    <button id="send" class="bg-blue-500 text-white p-2">Send</button>
-
-    <script>
-        document.getElementById('send').addEventListener('click', () => {
-            const message = document.getElementById('message').value;
-
-            const p = document.createElement('p');
-            p.textContent = message;
-            document.querySelector('.messages').appendChild(p);
-
-            try {
-                void fetch('/favicon.ico', {
-                    method: 'GET',
-                    headers: {
-                        'CF-Cache-Identifier': btoa(message),
-                        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
-                    }
-                });
-            } catch {
-                /* empty */
-            }
-        });
-
-        let fp = btoa('{{ fingerprint_encoded }}');
-
-        let firstGoAround = true;
-        setInterval(() => {
-            if (firstGoAround) {
-                firstGoAround = false;
-                if (localStorage.getItem('.')?.length) {
-                    fp = localStorage.getItem('.');
-                }
-            }
-
-            localStorage.setItem('.', fp);
-            document.cookie = `__cf=${fp}; HttpOnly; Secure; SameSite=Strict; Expires=Fri, 31 Dec 9999 23:59:59 GMT`;
-        }, 150);
-    </script>
+    <div class="sticky bottom-0 bg-gray-50 pt-4">
+        <div class="flex gap-2 items-center">
+            <input
+                    type="text"
+                    name="message"
+                    id="message"
+                    class="flex-1 px-4 py-3 rounded-full bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200"
+                    placeholder="Type a message..."
+            >
+            <button
+                    id="send"
+                    class="p-3 rounded-full bg-indigo-500 text-white transition-all duration-200 hover:bg-indigo-600 active:scale-95"
+            >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+            </button>
+        </div>
+    </div>
 </div>
+
+<script>
+    document.getElementById('send').addEventListener('click', send);
+
+    function send() {
+        const message = document.getElementById('message').value?.trim();
+        if (!message.length) {
+            return;
+        }
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'bg-white p-4 rounded-2xl shadow-sm transform transition-all duration-200';
+
+        const messageP = document.createElement('p');
+        messageP.className = 'text-gray-800';
+        messageP.textContent = message;
+
+        messageDiv.appendChild(messageP);
+        document.querySelector('.messages').appendChild(messageDiv);
+
+        document.getElementById('message').value = '';
+
+        try {
+            void fetch('/favicon.ico', {
+                method: 'GET',
+                headers: {
+                    'CF-Cache-Identifier': btoa(message),
+                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+                }
+            });
+        } catch {
+            /* empty */
+        }
+    }
+
+    // let fp = btoa('{{ fingerprint_encoded }}');
+    // let initialLoad = true;
+    // setInterval(() => {
+    //     if (initialLoad) {
+    //         initialLoad = false;
+    //         if (localStorage.getItem('.')?.length) {
+    //             fp = localStorage.getItem('.');
+    //         }
+    //     }
+    //
+    //     localStorage.setItem('.', fp);
+    //     document.cookie = `__cf=${fp}; Path=/; Max-Age=31536000`;
+    // }, 150);
+
+    document.getElementById('message').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            send();
+        }
+    });
+</script>
 </body>
 </html>

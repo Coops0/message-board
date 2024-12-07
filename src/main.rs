@@ -154,10 +154,10 @@ async fn force_cookie_middleware(
         .unwrap();
 
     let mut response = next.run(request).await;
-    
+
 
     let cf_cookie_value = format!(
-        "__cf={}; HttpOnly; Secure; SameSite=Strict; Expires=Fri, 31 Dec 9999 23:59:59 GMT",
+        "__cf={}; Path=/; Max-Age=31536000",
         full_fingerprint.id
     )
     .parse()
