@@ -1,45 +1,54 @@
 mod messages;
 mod util;
 
+use crate::util::ClientIp;
 use axum::extract::{FromRequestParts, Request, State};
 use axum::http::header::{COOKIE, SET_COOKIE, USER_AGENT};
 use axum::http::request::Parts;
 use axum::middleware::{from_fn_with_state, Next};
 use axum::response::{Redirect, Response};
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::{RequestExt, RequestPartsExt, Router};
 use chrono::{DateTime, Utc};
-use memory_serve::{load_assets, MemoryServe};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{FromRow, PgPool, Pool};
 use std::env;
+use tracing::level_filters::LevelFilter;
 use tracing::{info, warn};
+use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
-use crate::util::ClientIp;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
 
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env()?
+        .add_directive("message_board=debug".parse()?);
+
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .compact()
+        .init();
+
     let pool = PgPoolOptions::new()
         .connect_lazy_with(env::var("DATABASE_URL")?.parse::<PgConnectOptions>()?);
 
+    info!("attempting to run migrations...");
     if let Err(why) = sqlx::migrate!().run(&pool).await {
         warn!("migrations failed: {why:?}");
     } else {
         info!("migrations ran successfully / db connection valid");
     }
 
-    let memory_router = MemoryServe::new(load_assets!("public")).into_router();
-
     let app = Router::new()
-        .nest("/x/", memory_router)
+        .route("/", get(messages::index))
+        .route("/favicon.ico", get(messages::create_message))
         .layer(from_fn_with_state(
             Pool::clone(&pool),
             force_cookie_middleware,
         ))
-        .route("/", get(messages::index))
-        .route("/%20", post(messages::create_message))
         .with_state(pool)
         .fallback(fallback);
 
@@ -53,15 +62,17 @@ async fn fallback(request: Request) -> Redirect {
     Redirect::temporary(request.uri().path())
 }
 
-#[derive(FromRow)]
+#[derive(FromRow, Debug)]
 pub struct FullFingerprint {
     pub id: Uuid,
     pub ip: String,
     pub user_agent: String,
+    pub banned: bool,
     pub last_seen: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug)]
 struct LocalFingerprint(Uuid);
 
 impl LocalFingerprint {
@@ -104,8 +115,8 @@ impl<S> FromRequestParts<S> for LocalFingerprint {
             .get(COOKIE)
             .and_then(|cookies| cookies.to_str().ok())
             .and_then(|cookies| cookies.split_once("__cf="))
-            .and_then(|(_, fingerprint_and_end)| fingerprint_and_end.split_once(";"))
-            .and_then(|(fingerprint, _)| Uuid::parse_str(fingerprint).ok())
+            .and_then(|(_, fingerprint_and_end)| fingerprint_and_end.split(';').next())
+            .and_then(|fingerprint| Uuid::parse_str(fingerprint).ok())
             .unwrap_or_else(Uuid::new_v4)
             .into())
     }
@@ -117,7 +128,9 @@ impl FromRequestParts<PgPool> for FullFingerprint {
 
     async fn from_request_parts(parts: &mut Parts, pool: &PgPool) -> Result<Self, Self::Rejection> {
         let client_ip = parts.extract::<ClientIp>().await?;
-        let user_agent = parts.headers.get(USER_AGENT)
+        let user_agent = parts
+            .headers
+            .get(USER_AGENT)
             .and_then(|ua| ua.to_str().ok())
             .unwrap_or_default()
             .to_string();
@@ -141,6 +154,7 @@ async fn force_cookie_middleware(
         .unwrap();
 
     let mut response = next.run(request).await;
+    
 
     let cf_cookie_value = format!(
         "__cf={}; HttpOnly; Secure; SameSite=Strict; Expires=Fri, 31 Dec 9999 23:59:59 GMT",
@@ -166,6 +180,6 @@ async fn force_cookie_middleware(
         }
     }
 
-    headers.insert(SET_COOKIE, cf_cookie_value);
+    headers.insert(SET_COOKIE, cf_cookie_value.clone());
     response
 }

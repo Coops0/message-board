@@ -1,10 +1,10 @@
+use askama::Template;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use std::future::Future;
+use axum::response::{Html, IntoResponse, Response};
+use minify_html::Cfg;
 use std::net::IpAddr;
-use std::pin::Pin;
 use tracing::warn;
 
 pub struct WE(anyhow::Error);
@@ -39,7 +39,36 @@ impl<S> FromRequestParts<S> for ClientIp {
                 .and_then(|ip| ip.parse::<IpAddr>().ok())
                 // todo
                 .unwrap_or_else(|| IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
-                // .unwrap_or_else(|| panic!("failed to get client ip")),
+            // .unwrap_or_else(|| panic!("failed to get client ip")),
         ))
+    }
+}
+
+pub struct MinifiedHtml<H: Template>(pub H);
+
+impl<H: Template> IntoResponse for MinifiedHtml<H> {
+    fn into_response(self) -> Response {
+        let html = self.0.render().expect("failed to render template");
+        let minified_html = minify_html::minify(
+            html.as_bytes(),
+            &Cfg {
+                do_not_minify_doctype: false,
+                ensure_spec_compliant_unquoted_attribute_values: false,
+                keep_closing_tags: false,
+                keep_html_and_head_opening_tags: false,
+                keep_spaces_between_attributes: false,
+                keep_comments: false,
+                keep_input_type_text_attr: false,
+                keep_ssi_comments: false,
+                preserve_brace_template_syntax: true,
+                preserve_chevron_percent_template_syntax: false,
+                minify_css: true,
+                minify_js: true,
+                remove_bangs: true,
+                remove_processing_instructions: true,
+            },
+        );
+
+        Html(minified_html).into_response()
     }
 }

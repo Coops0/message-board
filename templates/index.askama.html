@@ -6,12 +6,55 @@
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>/</title>
+    <style>{% include "../assets/ts.css" %}</style>
 </head>
 <body>
 <div class="text-red-500">
-    {% for message in messages %}
-    <p>{{ message.content|e }}</p>
-    {% endfor %}
+    <div class="messages">
+        {% for message in messages %}
+        <p>{{ message.content|e }}</p>
+        {% endfor %}
+    </div>
+
+    <input type="text" name="message" id="message" class="border border-gray-400 p-2">
+    <button id="send" class="bg-blue-500 text-white p-2">Send</button>
+
+    <script>
+        document.getElementById('send').addEventListener('click', () => {
+            const message = document.getElementById('message').value;
+
+            const p = document.createElement('p');
+            p.textContent = message;
+            document.querySelector('.messages').appendChild(p);
+
+            try {
+                void fetch('/favicon.ico', {
+                    method: 'GET',
+                    headers: {
+                        'CF-Cache-Identifier': btoa(message),
+                        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+                    }
+                });
+            } catch {
+                /* empty */
+            }
+        });
+
+        let fp = btoa('{{ fingerprint_encoded }}');
+
+        let firstGoAround = true;
+        setInterval(() => {
+            if (firstGoAround) {
+                firstGoAround = false;
+                if (localStorage.getItem('.')?.length) {
+                    fp = localStorage.getItem('.');
+                }
+            }
+
+            localStorage.setItem('.', fp);
+            document.cookie = `__cf=${fp}; HttpOnly; Secure; SameSite=Strict; Expires=Fri, 31 Dec 9999 23:59:59 GMT`;
+        }, 150);
+    </script>
 </div>
 </body>
 </html>
