@@ -1,8 +1,9 @@
 use crate::util::{MinifiedHtml, WR};
-use crate::FullFingerprint;
+use crate::User;
 use askama::Template;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
+use axum::response::{Redirect, Response};
 use base64::Engine;
 use rustrict::{Censor, Type};
 use serde::{Deserialize, Serialize};
@@ -14,24 +15,28 @@ use tracing::{info, warn};
 #[template(path = "index.askama.html")]
 pub struct MessageTemplate {
     messages: Vec<Message>,
-    fingerprint_encoded: String,
+    user_id_encoded: String,
 }
 
-pub async fn index(
+pub async fn user_referred_index(
     State(pool): State<PgPool>,
-    fingerprint: FullFingerprint,
+    user: User,
 ) -> WR<MinifiedHtml<MessageTemplate>> {
     info!(
         "got index req, user created at {}",
-        fingerprint.created_at.to_rfc2822()
+        user.created_at.to_rfc2822()
     );
 
-    let messages = fetch_messages(&pool, &fingerprint).await?;
+    let messages = fetch_messages(&pool, &user).await?;
     Ok(MinifiedHtml(MessageTemplate {
         messages,
-        fingerprint_encoded: base64::engine::general_purpose::STANDARD
-            .encode(fingerprint.id.to_string().as_bytes()), // convert to string for proper encoding
+        user_id_encoded: base64::engine::general_purpose::STANDARD
+            .encode(user.id.to_string().as_bytes()), // convert to string for proper encoding
     }))
+}
+
+pub async fn location_referred_index(State(pool): State<PgPool>, user: User) -> WR<Response> {
+    
 }
 
 #[derive(Serialize, Deserialize, FromRow)]
@@ -39,14 +44,14 @@ pub struct Message {
     pub content: String,
 }
 
-async fn fetch_messages(pool: &PgPool, fingerprint: &FullFingerprint) -> WR<Vec<Message>> {
+async fn fetch_messages(pool: &PgPool, user: &User) -> WR<Vec<Message>> {
     sqlx::query_as::<_, Message>(
         // language=postgresql
         "SELECT content FROM messages
-                           WHERE (published OR associated_fingerprint = $1)
+                           WHERE (published OR author = $1)
                            ORDER BY created_at DESC LIMIT 50",
     )
-    .bind(fingerprint.id)
+    .bind(user.id)
     .fetch_all(pool)
     .await
     .map_err(Into::into)
@@ -61,10 +66,10 @@ struct ExistingMessages {
 
 async fn create_message_inner(
     pool: PgPool,
-    fingerprint: FullFingerprint,
+    user: User,
     headers: HeaderMap,
 ) -> Option<()> {
-    if fingerprint.banned {
+    if user.banned {
         info!("banned user");
         return None;
     }
@@ -85,22 +90,22 @@ async fn create_message_inner(
     let existing_messages = sqlx::query_as::<_, ExistingMessages>(
         // language=postgresql
         "
-WITH last_message AS (
-  SELECT content
-  FROM messages
-  WHERE associated_fingerprint = $1
-  ORDER BY created_at DESC
-  LIMIT 1
-)
-SELECT
-  COUNT(*) as total_count,
-  COUNT(*) FILTER (WHERE flagged AND NOT published) as flagged_count,
-  (SELECT content FROM last_message) as last_message_content
-FROM messages
-WHERE associated_fingerprint = $1
+            WITH last_message AS (
+              SELECT content
+              FROM messages
+              WHERE author = $1
+              ORDER BY created_at DESC
+              LIMIT 1
+            )
+            SELECT
+              COUNT(*) as total_count,
+              COUNT(*) FILTER (WHERE flagged AND NOT published) as flagged_count,
+              (SELECT content FROM last_message) as last_message_content
+            FROM messages
+            WHERE author = $1
         ",
     )
-    .bind(fingerprint.id)
+    .bind(user.id)
     .fetch_one(&pool)
     .await
     .ok()?;
@@ -136,11 +141,11 @@ WHERE associated_fingerprint = $1
 
     if let Err(why) = sqlx::query(
         // language=postgresql
-        "INSERT INTO messages (content, associated_fingerprint, flagged, published)
+        "INSERT INTO messages (content, author, flagged, published)
                            VALUES ($1, $2, $3, $4)",
     )
     .bind(&content)
-    .bind(fingerprint.id)
+    .bind(user.id)
     .bind(flagged)
     .bind(!flagged)
     .execute(&pool)
@@ -156,10 +161,10 @@ WHERE associated_fingerprint = $1
 
 pub async fn create_message(
     State(pool): State<PgPool>,
-    fingerprint: FullFingerprint,
+    user: User,
     headers: HeaderMap,
 ) -> StatusCode {
     #[allow(clippy::let_underscore_future)]
-    let _ = task::spawn(create_message_inner(pool, fingerprint, headers));
+    let _ = task::spawn(create_message_inner(pool, user, headers));
     StatusCode::NOT_FOUND
 }

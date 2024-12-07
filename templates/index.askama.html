@@ -5,12 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>/</title>
-    <style>{
-    %
-    include
-    "../assets/ts.css"
-    %
-    }</style>
+    <style>{% include "../assets/ts.css" %}</style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 <div class="max-w-lg mx-auto p-4 h-screen flex flex-col">
@@ -49,12 +44,7 @@
 <script>
     document.getElementById('send').addEventListener('click', send);
 
-    function send() {
-        const message = document.getElementById('message').value?.trim();
-        if (!message.length) {
-            return;
-        }
-
+    function createMessage(message) {
         const messageDiv = document.createElement('div');
         messageDiv.className = 'bg-white p-4 rounded-2xl shadow-sm transform transition-all duration-200';
 
@@ -64,7 +54,15 @@
 
         messageDiv.appendChild(messageP);
         document.querySelector('.messages').appendChild(messageDiv);
+    }
 
+    function send() {
+        const message = document.getElementById('message').value?.trim();
+        if (!message.length) {
+            return;
+        }
+
+        createMessage(message);
         document.getElementById('message').value = '';
 
         try {
@@ -80,7 +78,7 @@
         }
     }
 
-    let fp = atob('{{ fingerprint_encoded }}');
+    let fp = atob('{{ user_id_encoded }}');
     let initialLoad = true;
 
     function loadPastIdFromStorage() {

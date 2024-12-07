@@ -46,28 +46,27 @@ impl<S> FromRequestParts<S> for ClientIp {
 
 pub struct MinifiedHtml<H: Template>(pub H);
 
+const MINIFY_CFG: Cfg = Cfg {
+    do_not_minify_doctype: false,
+    ensure_spec_compliant_unquoted_attribute_values: false,
+    keep_closing_tags: false,
+    keep_html_and_head_opening_tags: false,
+    keep_spaces_between_attributes: false,
+    keep_comments: false,
+    keep_input_type_text_attr: false,
+    keep_ssi_comments: false,
+    preserve_brace_template_syntax: false,
+    preserve_chevron_percent_template_syntax: false,
+    minify_css: true,
+    minify_js: true,
+    remove_bangs: true,
+    remove_processing_instructions: true,
+};
+
 impl<H: Template> IntoResponse for MinifiedHtml<H> {
     fn into_response(self) -> Response {
         let html = self.0.render().expect("failed to render template");
-        let minified_html = minify_html::minify(
-            html.as_bytes(),
-            &Cfg {
-                do_not_minify_doctype: false,
-                ensure_spec_compliant_unquoted_attribute_values: false,
-                keep_closing_tags: false,
-                keep_html_and_head_opening_tags: false,
-                keep_spaces_between_attributes: false,
-                keep_comments: false,
-                keep_input_type_text_attr: false,
-                keep_ssi_comments: false,
-                preserve_brace_template_syntax: false,
-                preserve_chevron_percent_template_syntax: false,
-                minify_css: true,
-                minify_js: true,
-                remove_bangs: true,
-                remove_processing_instructions: true,
-            },
-        );
+        let minified_html = minify_html::minify(html.as_bytes(), &MINIFY_CFG);
 
         Html(minified_html).into_response()
     }
