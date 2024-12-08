@@ -55,13 +55,12 @@ pub async fn user_referred_index(
         );
     }
 
-    let Some((found_user_referral_id,)) =
-        sqlx::query_as::<_, (Uuid,)>("SELECT id, FROM locations WHERE code = $1 LIMIT 1")
-            .bind(&referral_user_code)
-            .fetch_optional(&pool)
-            .await
-            .ok()
-            .flatten()
+    let Ok(found_user_referral_id) = sqlx::query_scalar!(
+        "SELECT id FROM users WHERE code = $1 LIMIT 1",
+        &referral_user_code
+    )
+    .fetch_one(&pool)
+    .await
     else {
         return fallback(original_uri).await.into_response();
     };
@@ -72,17 +71,18 @@ pub async fn user_referred_index(
         .and_then(|ua| ua.to_str().ok())
         .map(ToString::to_string);
 
-    let created_user = sqlx::query_as::<_, User>(
+    let created_user = sqlx::query_as!(
+        User,
         // language=postgresql
         "INSERT INTO users (id, code, user_referral, ip, user_agent)
                            VALUES ($1, $2, $3, $4, $5)
                            RETURNING *",
+        local_user_id.0,
+        generate_code(),
+        found_user_referral_id,
+        ip.to_string(),
+        user_agent.as_deref()
     )
-    .bind(local_user_id.0)
-    .bind(generate_code())
-    .bind(found_user_referral_id)
-    .bind(ip.to_string())
-    .bind(&user_agent)
     .fetch_one(&pool)
     .await
     .expect("failed to insert user");
@@ -91,13 +91,6 @@ pub async fn user_referred_index(
         Redirect::temporary(&created_user.referral_uri()),
         &created_user,
     )
-
-    // let messages = fetch_messages(&pool, &user).await?;
-    // Ok(MinifiedHtml(MessageTemplate {
-    //     messages,
-    //     user_id_encoded: base64::engine::general_purpose::STANDARD
-    //         .encode(user.id.to_string().as_bytes()), // convert to string for proper encoding
-    // }))
 }
 
 pub async fn location_referred_index(
@@ -113,13 +106,13 @@ pub async fn location_referred_index(
         return inject_uuid_cookie(Redirect::temporary(&u.referral_uri()), &u);
     }
 
-    let Some((found_location_code,)) =
-        sqlx::query_as::<_, (String,)>("SELECT code FROM locations WHERE code = $1 LIMIT 1")
-            .bind(&location_code)
-            .fetch_optional(&pool)
-            .await
-            .ok()
-            .flatten()
+    let Ok(found_location_code) = sqlx::query_scalar!(
+        // language=postgresql
+        "SELECT code FROM locations WHERE code = $1 LIMIT 1",
+        &location_code
+    )
+    .fetch_one(&pool)
+    .await
     else {
         return fallback(original_uri).await.into_response();
     };
@@ -130,17 +123,18 @@ pub async fn location_referred_index(
         .and_then(|ua| ua.to_str().ok())
         .map(ToString::to_string);
 
-    let user = sqlx::query_as::<_, User>(
+    let user = sqlx::query_as!(
+        User,
         // language=postgresql
         "INSERT INTO users (id, code, location_referral, ip, user_agent)
                            VALUES ($1, $2, $3, $4, $5)
                            RETURNING *",
+        local_user_id.0,
+        generate_code(),
+        found_location_code,
+        ip.to_string(),
+        user_agent.as_deref()
     )
-    .bind(local_user_id.0)
-    .bind(generate_code())
-    .bind(&found_location_code)
-    .bind(ip.to_string())
-    .bind(&user_agent)
     .fetch_one(&pool)
     .await
     .expect("failed to insert user");
@@ -172,7 +166,8 @@ pub struct FullMessage {
 
 async fn fetch_messages(pool: &PgPool, user: &User) -> WR<Vec<Message>> {
     if user.admin {
-        return sqlx::query_as::<_, FullMessage>(
+        return sqlx::query_as!(
+            FullMessage,
             // language=postgresql
             "SELECT * FROM messages ORDER BY created_at DESC LIMIT 80",
         )
@@ -182,13 +177,14 @@ async fn fetch_messages(pool: &PgPool, user: &User) -> WR<Vec<Message>> {
         .map_err(Into::into);
     }
 
-    sqlx::query_as::<_, StandardMessage>(
+    sqlx::query_as!(
+        StandardMessage,
         // language=postgresql
         "SELECT content, created_at FROM messages
                            WHERE published OR author = $1
                            ORDER BY created_at DESC LIMIT 50",
+        user.id
     )
-    .bind(user.id)
     .fetch_all(pool)
     .await
     .map(|messages| messages.into_iter().map(Message::Standard).collect())
@@ -225,9 +221,10 @@ async fn create_message_inner(pool: PgPool, user: User, headers: HeaderMap) -> O
         return None;
     }
 
-    let existing_messages = sqlx::query_as::<_, ExistingMessages>(
+    let existing_messages = sqlx::query_as!(
+        ExistingMessages,
         // language=postgresql
-        "
+        r#"
             WITH last_message AS (
               SELECT content
               FROM messages
@@ -236,14 +233,14 @@ async fn create_message_inner(pool: PgPool, user: User, headers: HeaderMap) -> O
               LIMIT 1
             )
             SELECT
-              COUNT(*) as total_count,
-              COUNT(*) FILTER (WHERE flagged AND NOT published) as flagged_count,
+              COUNT(*) as "total_count!",
+              COUNT(*) FILTER (WHERE flagged AND NOT published) as "flagged_count!",
               (SELECT content FROM last_message) as last_message_content
             FROM messages
             WHERE author = $1
-        ",
+        "#,
+        user.id
     )
-    .bind(user.id)
     .fetch_one(&pool)
     .await
     .ok()?;
@@ -277,15 +274,15 @@ async fn create_message_inner(pool: PgPool, user: User, headers: HeaderMap) -> O
         info!("flagged");
     }
 
-    if let Err(why) = sqlx::query(
+    if let Err(why) = sqlx::query!(
         // language=postgresql
         "INSERT INTO messages (content, author, flagged, published)
                            VALUES ($1, $2, $3, $4)",
+        content,
+        user.id,
+        flagged,
+        !flagged
     )
-    .bind(&content)
-    .bind(user.id)
-    .bind(flagged)
-    .bind(!flagged)
     .execute(&pool)
     .await
     {

@@ -1,6 +1,6 @@
 mod messages;
-mod util;
 mod random_codes;
+mod util;
 
 use axum::extract::{FromRequestParts, OriginalUri};
 use axum::http::header::{COOKIE, SET_COOKIE};
@@ -116,11 +116,12 @@ impl FromRequestParts<PgPool> for User {
     async fn from_request_parts(parts: &mut Parts, pool: &PgPool) -> Result<Self, Self::Rejection> {
         let local_user_id = parts.extract::<LocalUserId>().await?;
 
-        let user = sqlx::query_as::<_, User>(
+        let user = sqlx::query_as!(
+            User,
             // language=postgresql
             "SELECT * FROM users WHERE id = $1 LIMIT 1",
+            local_user_id.0
         )
-        .bind(local_user_id.0)
         .fetch_one(pool)
         .await
         .map_err(|_| ())?;

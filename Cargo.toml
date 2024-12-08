@@ -20,3 +20,6 @@ rustrict = "0.7.33"
 minify-html = "0.15.0"
 rand = "0.8.5"
 ammonia = "4.0.0"
+
+[profile.dev.package.sqlx-macros]
+opt-level = 3
