@@ -12,9 +12,16 @@
     <div class="flex-1 overflow-y-auto space-y-3 py-4">
         <div class="messages">
             {% for message in messages %}
+            {% match message %}
+            {% when Message::Full with (fullMessage) %}
             <div class="bg-white p-4 rounded-2xl shadow-sm transform transition-all duration-200">
-                <p class="text-gray-800">{{ message.content|e }}</p>
+                <p class="text-gray-800">{{ fullMessage.content|e }}</p> <span class="text-gray-400">{{ fullMessage.author|e }}</span>
             </div>
+            {% when Message::Standard with (standardMessage) %}
+            <div class="bg-white p-4 rounded-2xl shadow-sm transform transition-all duration-200">
+                <p class="text-gray-800">{{ standardMessage.content|e }}</p>
+            </div>
+            {% endmatch %}
             {% endfor %}
         </div>
     </div>

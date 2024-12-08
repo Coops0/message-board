@@ -1,59 +1,197 @@
-use crate::util::{MinifiedHtml, WR};
-use crate::User;
+use crate::random_codes::generate_code;
+use crate::util::{ClientIp, MinifiedHtml, WR};
+use crate::{fallback, inject_uuid_cookie, LocalUserId, User};
 use askama::Template;
-use axum::extract::State;
+use axum::extract::{OriginalUri, Path, State};
+use axum::http::header::USER_AGENT;
 use axum::http::{HeaderMap, StatusCode};
-use axum::response::{Redirect, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use base64::Engine;
 use rustrict::{Censor, Type};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sqlx::{FromRow, PgPool};
 use tokio::task;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 #[derive(Template)]
-#[template(path = "index.askama.html")]
+#[template(path = "messages.askama.html")]
 pub struct MessageTemplate {
     messages: Vec<Message>,
     user_id_encoded: String,
+    admin: bool,
 }
 
 pub async fn user_referred_index(
     State(pool): State<PgPool>,
-    user: User,
-) -> WR<MinifiedHtml<MessageTemplate>> {
-    info!(
-        "got index req, user created at {}",
-        user.created_at.to_rfc2822()
-    );
+    Path(referral_user_code): Path<String>,
+    original_uri: OriginalUri,
+    local_user_id: Option<LocalUserId>,
+    user: Option<User>,
+    ClientIp(ip): ClientIp,
+    headers: HeaderMap,
+) -> Response {
+    if let Some(u) = user {
+        if u.code != referral_user_code {
+            return inject_uuid_cookie(Redirect::temporary(&u.referral_uri()), &u);
+        }
 
-    let messages = fetch_messages(&pool, &user).await?;
-    Ok(MinifiedHtml(MessageTemplate {
-        messages,
-        user_id_encoded: base64::engine::general_purpose::STANDARD
-            .encode(user.id.to_string().as_bytes()), // convert to string for proper encoding
-    }))
+        let messages = match fetch_messages(&pool, &u).await {
+            Ok(messages) => messages,
+            Err(why) => {
+                warn!("failed to fetch messages: {why:?}");
+                return inject_uuid_cookie(fallback(original_uri).await, &u);
+            }
+        };
+
+        return inject_uuid_cookie(
+            MinifiedHtml(MessageTemplate {
+                messages,
+                user_id_encoded: base64::engine::general_purpose::STANDARD
+                    .encode(u.id.to_string().as_bytes()), // convert to string for proper encoding
+                admin: u.admin,
+            }),
+            &u,
+        );
+    }
+
+    let Some((found_user_referral_id,)) =
+        sqlx::query_as::<_, (Uuid,)>("SELECT id, FROM locations WHERE code = $1 LIMIT 1")
+            .bind(&referral_user_code)
+            .fetch_optional(&pool)
+            .await
+            .ok()
+            .flatten()
+    else {
+        return fallback(original_uri).await.into_response();
+    };
+
+    let local_user_id = local_user_id.unwrap_or_default();
+    let user_agent = headers
+        .get(USER_AGENT)
+        .and_then(|ua| ua.to_str().ok())
+        .map(ToString::to_string);
+
+    let created_user = sqlx::query_as::<_, User>(
+        // language=postgresql
+        "INSERT INTO users (id, code, user_referral, ip, user_agent)
+                           VALUES ($1, $2, $3, $4, $5)
+                           RETURNING *",
+    )
+    .bind(local_user_id.0)
+    .bind(generate_code())
+    .bind(found_user_referral_id)
+    .bind(ip.to_string())
+    .bind(&user_agent)
+    .fetch_one(&pool)
+    .await
+    .expect("failed to insert user");
+
+    inject_uuid_cookie(
+        Redirect::temporary(&created_user.referral_uri()),
+        &created_user,
+    )
+
+    // let messages = fetch_messages(&pool, &user).await?;
+    // Ok(MinifiedHtml(MessageTemplate {
+    //     messages,
+    //     user_id_encoded: base64::engine::general_purpose::STANDARD
+    //         .encode(user.id.to_string().as_bytes()), // convert to string for proper encoding
+    // }))
 }
 
-pub async fn location_referred_index(State(pool): State<PgPool>, user: User) -> WR<Response> {
-    
+pub async fn location_referred_index(
+    State(pool): State<PgPool>,
+    Path(location_code): Path<String>,
+    original_uri: OriginalUri,
+    local_user_id: Option<LocalUserId>,
+    user: Option<User>,
+    ClientIp(ip): ClientIp,
+    headers: HeaderMap,
+) -> Response {
+    if let Some(u) = user {
+        return inject_uuid_cookie(Redirect::temporary(&u.referral_uri()), &u);
+    }
+
+    let Some((found_location_code,)) =
+        sqlx::query_as::<_, (String,)>("SELECT code FROM locations WHERE code = $1 LIMIT 1")
+            .bind(&location_code)
+            .fetch_optional(&pool)
+            .await
+            .ok()
+            .flatten()
+    else {
+        return fallback(original_uri).await.into_response();
+    };
+
+    let local_user_id = local_user_id.unwrap_or_default();
+    let user_agent = headers
+        .get(USER_AGENT)
+        .and_then(|ua| ua.to_str().ok())
+        .map(ToString::to_string);
+
+    let user = sqlx::query_as::<_, User>(
+        // language=postgresql
+        "INSERT INTO users (id, code, location_referral, ip, user_agent)
+                           VALUES ($1, $2, $3, $4, $5)
+                           RETURNING *",
+    )
+    .bind(local_user_id.0)
+    .bind(generate_code())
+    .bind(&found_location_code)
+    .bind(ip.to_string())
+    .bind(&user_agent)
+    .fetch_one(&pool)
+    .await
+    .expect("failed to insert user");
+
+    inject_uuid_cookie(Redirect::temporary(&user.referral_uri()), &user)
 }
 
-#[derive(Serialize, Deserialize, FromRow)]
-pub struct Message {
+#[derive(Serialize)]
+pub enum Message {
+    Standard(StandardMessage),
+    Full(FullMessage),
+}
+
+#[derive(Serialize, FromRow)]
+pub struct StandardMessage {
     pub content: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Serialize, FromRow)]
+pub struct FullMessage {
+    pub id: Uuid,
+    pub content: String,
+    pub author: Uuid,
+    pub flagged: bool,
+    pub published: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 async fn fetch_messages(pool: &PgPool, user: &User) -> WR<Vec<Message>> {
-    sqlx::query_as::<_, Message>(
+    if user.admin {
+        return sqlx::query_as::<_, FullMessage>(
+            // language=postgresql
+            "SELECT * FROM messages ORDER BY created_at DESC LIMIT 80",
+        )
+        .fetch_all(pool)
+        .await
+        .map(|messages| messages.into_iter().map(Message::Full).collect())
+        .map_err(Into::into);
+    }
+
+    sqlx::query_as::<_, StandardMessage>(
         // language=postgresql
-        "SELECT content FROM messages
-                           WHERE (published OR author = $1)
+        "SELECT content, created_at FROM messages
+                           WHERE published OR author = $1
                            ORDER BY created_at DESC LIMIT 50",
     )
     .bind(user.id)
     .fetch_all(pool)
     .await
+    .map(|messages| messages.into_iter().map(Message::Standard).collect())
     .map_err(Into::into)
 }
 
@@ -64,11 +202,7 @@ struct ExistingMessages {
     last_message_content: Option<String>,
 }
 
-async fn create_message_inner(
-    pool: PgPool,
-    user: User,
-    headers: HeaderMap,
-) -> Option<()> {
+async fn create_message_inner(pool: PgPool, user: User, headers: HeaderMap) -> Option<()> {
     if user.banned {
         info!("banned user");
         return None;

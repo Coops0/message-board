@@ -7,6 +7,7 @@ use minify_html::Cfg;
 use std::net::IpAddr;
 use tracing::warn;
 
+#[derive(Debug)]
 pub struct WE(anyhow::Error);
 
 impl<E: Into<anyhow::Error>> From<E> for WE {

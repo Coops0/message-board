@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = { version = "0.7.9" }
+axum = { version = "0.7.9", features = ["original-uri"] }
 tokio = { version = "1.42.0", features = ["full"] }
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing = "0.1.41"
@@ -18,3 +18,4 @@ askama = { version = "0.12.1" }
 base64 = "0.22.1"
 rustrict = "0.7.33"
 minify-html = "0.15.0"
+rand = "0.8.5"
