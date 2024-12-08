@@ -1,11 +1,16 @@
+use std::convert::Infallible;
+use crate::controller::ExistingMessages;
+use anyhow::Context;
 use askama::Template;
 use axum::extract::FromRequestParts;
+use axum::http::header::USER_AGENT;
 use axum::http::request::Parts;
-use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
+use base64::Engine;
 use minify_html::Cfg;
+use rustrict::{Censor, Type};
 use std::net::IpAddr;
-use tracing::warn;
+use tracing::{info, warn};
 
 #[derive(Debug)]
 pub struct WE(anyhow::Error);
@@ -16,10 +21,17 @@ impl<E: Into<anyhow::Error>> From<E> for WE {
     }
 }
 
+#[derive(Clone)]
+pub struct WebErrorExtensionMarker;
+
 impl IntoResponse for WE {
     fn into_response(self) -> Response {
         warn!("error!! -> {:?}", self.0);
-        StatusCode::UPGRADE_REQUIRED.into_response()
+        // this will never be shown to the user
+        let mut res = ().into_response();
+        res.extensions_mut().insert(WebErrorExtensionMarker);
+
+        res
     }
 }
 
@@ -70,5 +82,81 @@ impl<H: Template> IntoResponse for MinifiedHtml<H> {
         let minified_html = minify_html::minify(html.as_bytes(), &MINIFY_CFG);
 
         Html(minified_html).into_response()
+    }
+}
+
+pub struct MaybeUserAgent(pub Option<String>);
+
+#[axum::async_trait]
+impl<S> FromRequestParts<S> for MaybeUserAgent
+where
+    S: Send + Sync,
+{
+    type Rejection = Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
+        Ok(Self(
+            parts
+            .headers
+            .get(USER_AGENT)
+            .and_then(|ua| ua.to_str().ok())
+            .map(str::to_string)
+        ))
+    }
+}
+
+pub fn should_block_message(existing: &ExistingMessages, content: &str) -> bool {
+    if existing.total_count > 400 {
+        return false;
+    }
+
+    if let Some(last_content) = &existing.last_message_content {
+        if last_content == content {
+            return false;
+        }
+    }
+
+    true
+}
+
+pub fn should_flag_message(existing: &ExistingMessages, content: &str) -> bool {
+    if existing.flagged_count > 25 {
+        return true;
+    }
+
+    let profanity_type = Censor::from_str(content).analyze();
+    info!("profanity type type: {:?}", profanity_type);
+
+    profanity_type.is(Type::SEVERE)
+}
+
+pub struct MessageFromHeaders(pub String);
+
+#[axum::async_trait]
+impl<S> FromRequestParts<S> for MessageFromHeaders
+where
+    S: Send + Sync,
+{
+    type Rejection = WE;
+
+    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
+        let raw_header = parts
+            .headers
+            .get("CF-Cache-Identifier")
+            .context("failed to get header")?
+            .as_bytes();
+
+        let content_bytes = base64::engine::general_purpose::STANDARD.decode(raw_header)?;
+
+        if content_bytes.len() > 1024 {
+            return Err(WE(anyhow::anyhow!("content too long")));
+        }
+
+        let content = ammonia::clean(&String::from_utf8(content_bytes)?);
+        if content.is_empty() {
+            Err(WE(anyhow::anyhow!("content is empty")))
+        } else {
+            Ok(Self(content))
+        }
     }
 }

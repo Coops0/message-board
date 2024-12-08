@@ -23,3 +23,21 @@ ammonia = "4.0.0"
 
 [profile.dev.package.sqlx-macros]
 opt-level = 3
+
+[lints.clippy]
+all = "warn"
+correctness = "deny"
+suspicious = "deny"
+complexity = "deny"
+perf = "deny"
+style = "deny"
+pedantic = "warn"
+nursery = "warn"
+module-name-repetitions = { level = "allow", priority = 30 }
+declare-interior-mutable-const = { level = "allow", priority = 30 }
+borrow-interior-mutable-const = { level = "allow", priority = 30 }
+
+[lints.rust]
+warnings = "warn"
+future-incompatible = "warn"
+nonstandard-style = "warn"
