@@ -6,11 +6,7 @@ use crate::{
     util::{ClientIp, MinifiedHtml, WR},
 };
 use askama::Template;
-use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    response::Response,
-};
+use axum::{extract::{Path, State}, http::StatusCode, response::Response, Json};
 use sqlx::PgPool;
 use std::net::IpAddr;
 use tokio::task;
@@ -45,6 +41,14 @@ pub async fn user_referred_index(
         }
     }
     .map_err(Into::into)
+}
+
+pub async fn messages_by_json(
+    State(pool): State<PgPool>,
+    user: User,
+) -> WR<Response> {
+    let messages = Message::fetch_for(&pool, &user).await?;
+    Ok(inject_uuid_cookie(Json(messages), &user))
 }
 
 pub async fn location_referred_index(
