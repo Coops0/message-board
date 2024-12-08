@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use crate::user::User;
 use serde::Serialize;
 use sqlx::{FromRow, PgPool, Postgres};
@@ -12,7 +13,7 @@ pub enum Message {
 #[derive(Serialize, FromRow)]
 pub struct StandardMessage {
     pub content: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Serialize, FromRow)]
@@ -22,7 +23,7 @@ pub struct FullMessage {
     pub author: Uuid,
     pub flagged: bool,
     pub published: bool,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: DateTime<Utc>,
 }
 
 impl Message {

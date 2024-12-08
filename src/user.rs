@@ -43,7 +43,7 @@ impl User {
 pub struct MaybeLocalUserId(pub Option<Uuid>);
 
 impl MaybeLocalUserId {
-    pub(crate) fn make(mut self) -> Uuid {
+    pub fn make(mut self) -> Uuid {
         self.0.take().unwrap_or_else(Uuid::new_v4)
     }
 }
@@ -91,23 +91,17 @@ pub fn inject_uuid_cookie<R: IntoResponse>(response: R, user: &User) -> Response
     let mut response = response.into_response();
     let cf_cookie_value = format!("__cf={}; Path=/; Max-Age=31536000", user.id)
         .parse()
-        .unwrap();
+        .expect("failed to parse user id cookie value?");
 
     let headers = response.headers_mut();
 
-    for (name, value) in headers.iter_mut() {
-        if name != SET_COOKIE {
-            continue;
-        }
-
-        let Ok(val) = value.to_str() else {
-            continue;
-        };
-
-        if val.contains("__cf=") {
-            *value = cf_cookie_value;
-            return response;
-        }
+    if let Some((_, existing_header_value)) = headers
+        .iter_mut()
+        .filter(|(name, _)| name == &SET_COOKIE)
+        .find(|(_, value)| value.to_str().is_ok_and(|val| val.contains("__cf=")))
+    {
+        *existing_header_value = cf_cookie_value;
+        return response;
     }
 
     headers.insert(SET_COOKIE, cf_cookie_value);
