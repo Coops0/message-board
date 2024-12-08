@@ -1,9 +1,8 @@
 use crate::messages::Message;
 use crate::user::{inject_uuid_cookie, MaybeLocalUserId, User};
-use crate::util::{MaybeUserAgent, MessageFromHeaders};
+use crate::util::{ExistingMessages, MaybeUserAgent, MessageFromHeaders};
 use crate::{
     random_codes::generate_code,
-    util,
     util::{ClientIp, MinifiedHtml, WR},
 };
 use askama::Template;
@@ -12,10 +11,9 @@ use axum::{
     http::StatusCode,
     response::Response,
 };
-use sqlx::{FromRow, PgPool};
+use sqlx::PgPool;
 use std::net::IpAddr;
 use tokio::task;
-use uuid::Uuid;
 
 #[derive(Template)]
 #[template(path = "messages.askama.html")]
@@ -23,13 +21,6 @@ pub struct MessagesPageTemplate {
     messages: Vec<Message>,
     user_id_encoded: String,
     admin: bool,
-}
-
-#[derive(FromRow, Debug)]
-pub struct ExistingMessages {
-    pub total_count: i64,
-    pub flagged_count: i64,
-    pub last_message_content: Option<String>,
 }
 
 pub async fn user_referred_index(
@@ -114,9 +105,9 @@ async fn handle_existing_user(
 
 async fn handle_new_user(
     pool: &PgPool,
-    local_user_id: MaybeLocalUserId,
+    maybe_local_user_id: MaybeLocalUserId,
     ip: IpAddr,
-    maybe_user_agent: MaybeUserAgent,
+    MaybeUserAgent(maybe_user_agent): MaybeUserAgent,
     referral_code: String,
 ) -> anyhow::Result<Response> {
     let user_id = sqlx::query_scalar!(
@@ -126,31 +117,21 @@ async fn handle_new_user(
     .fetch_one(pool)
     .await?;
 
-    let user = create_new_user(pool, local_user_id.make(), user_id, ip, maybe_user_agent).await?;
-    Ok(inject_uuid_cookie(user.user_referral_redirect(), &user))
-}
-
-async fn create_new_user(
-    pool: &PgPool,
-    id: Uuid,
-    user_referral_id: Uuid,
-    ip: IpAddr,
-    MaybeUserAgent(user_agent): MaybeUserAgent,
-) -> anyhow::Result<User> {
-    sqlx::query_as!(
+    let user = sqlx::query_as!(
         User,
         "INSERT INTO users (id, code, user_referral, ip, user_agent)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING *",
-        id,
+        maybe_local_user_id.make(),
         generate_code(),
-        user_referral_id,
+        user_id,
         ip.to_string(),
-        user_agent.as_deref()
+        maybe_user_agent.as_deref()
     )
     .fetch_one(pool)
-    .await
-    .map_err(Into::into)
+    .await?;
+
+    Ok(inject_uuid_cookie(user.user_referral_redirect(), &user))
 }
 
 pub async fn create_message(
@@ -167,56 +148,28 @@ pub async fn create_message(
             return;
         };
 
-        let Some(existing) = fetch_existing_messages(&pool, &user).await else {
+        let Ok(existing) = ExistingMessages::fetch_for(&pool, &user).await else {
             return;
         };
 
-        if !util::should_block_message(&existing, &content) {
+        if !existing.should_block_message(&content) {
             return;
         }
 
-        let flagged = util::should_flag_message(&existing, &content);
-        insert_message(&pool, &content, &user, flagged).await;
+        let flagged = existing.should_flag_message(&content);
+        sqlx::query!(
+            // language=postgresql
+            "INSERT INTO messages (content, author, flagged, published)
+             VALUES ($1, $2, $3, $4)",
+            content,
+            user.id,
+            flagged,
+            !flagged
+        )
+        .execute(&pool)
+        .await
+        .expect("failed to insert message");
     });
 
     StatusCode::NOT_FOUND
-}
-
-async fn fetch_existing_messages(pool: &PgPool, user: &User) -> Option<ExistingMessages> {
-    sqlx::query_as!(
-        ExistingMessages,
-        // language=postgresql
-        r#"WITH last_message AS (
-            SELECT content
-            FROM messages
-            WHERE author = $1
-            ORDER BY created_at DESC
-            LIMIT 1
-        )
-        SELECT
-            COUNT(*) as "total_count!",
-            COUNT(*) FILTER (WHERE flagged AND NOT published) as "flagged_count!",
-            (SELECT content FROM last_message) as last_message_content
-        FROM messages
-        WHERE author = $1"#,
-        user.id
-    )
-    .fetch_one(pool)
-    .await
-    .ok()
-}
-
-async fn insert_message(pool: &PgPool, content: &str, user: &User, flagged: bool) {
-    sqlx::query!(
-        // language=postgresql
-        "INSERT INTO messages (content, author, flagged, published)
-         VALUES ($1, $2, $3, $4)",
-        content,
-        user.id,
-        flagged,
-        !flagged
-    )
-    .execute(pool)
-    .await
-    .expect("failed to insert message");
 }
