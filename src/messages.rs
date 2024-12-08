@@ -218,8 +218,12 @@ async fn create_message_inner(pool: PgPool, user: User, headers: HeaderMap) -> O
         return None;
     }
 
-    let content = String::from_utf8(content_bytes).ok()?;
+    let content = ammonia::clean(&String::from_utf8(content_bytes).ok()?);
     info!("msg content: {content}");
+    if content.is_empty() {
+        info!("empty message");
+        return None;
+    }
 
     let existing_messages = sqlx::query_as::<_, ExistingMessages>(
         // language=postgresql
