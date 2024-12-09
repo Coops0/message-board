@@ -1,5 +1,5 @@
-mod messages;
 mod controller;
+mod messages;
 mod random_codes;
 mod user;
 mod util;
@@ -44,7 +44,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/l/:code", get(controller::location_referred_index))
         .route("/u/:code", get(controller::user_referred_index))
         .route("/favicon.ico", get(controller::create_message))
-        .route("/api/v1/messages", get(controller::messages_by_json))
+        .route(
+            "/cgi-bin/cloudflare-verify.php",
+            get(controller::encoded_messages),
+        )
         .layer(from_fn(intercept_web_error))
         .with_state(pool)
         .fallback(fallback);

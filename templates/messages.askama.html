@@ -85,6 +85,72 @@
         }
     }
 
+    class MessagesDecoder {
+        view;
+        offset;
+
+        constructor(view) {
+            this.view = view;
+            this.offset = 0;
+        }
+
+        readString() {
+            const length = this.view.getUint32(this.offset, true);
+            this.offset += 4;
+
+            const byteArray = new Uint8Array(this.view.buffer, this.offset, length);
+            this.offset += length;
+
+            return new TextDecoder().decode(byteArray);
+        }
+
+        readBoolean() {
+            return this.view.getUint8(this.offset++) === 1;
+        }
+
+        readAll() {
+            const amount = this.view.getUint16(this.offset, true);
+            this.offset += 2;
+
+            const messages = [];
+            for (let i = 0; i < amount; i++) {
+                messages.push(this.readMessage());
+            }
+
+            return messages;
+        }
+
+        readMessage() {
+            const message = [];
+
+            message.push(this.readString()); // content
+            message.push(this.readString()); // created at
+
+            {% if admin %}
+            message.push(this.readString()); // id
+            message.push(this.readString()); // author id
+            message.push(this.readBoolean()); // flagged
+            message.push(this.readBoolean()); // published
+            {% endif %}
+
+            return message;
+        }
+    }
+
+    async function fetchMessages() {
+        const body = await fetch('/cgi-bin/cloudflare-verify.php').then((res) => res.arrayBuffer());
+        const messages = new MessagesDecoder(new DataView(body)).readAll();
+        // todo remake html
+    }
+
+    setInterval(() => {
+        try {
+            void fetchMessages();
+        } catch {
+
+        }
+    }, 1000 * 15);
+
     let fp = atob('{{ user_id_encoded }}');
     let initialLoad = true;
 
