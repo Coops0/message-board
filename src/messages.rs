@@ -37,7 +37,7 @@ impl Message {
 
         query.push("FROM messages");
         if !user.admin {
-            query.push_bind(" WHERE published OR author = ");
+            query.push(" WHERE published OR author = ");
             query.push_bind(user.id);
         }
 
