@@ -1,6 +1,7 @@
-use crate::messages::Message;
+use crate::messages::{FullMessage, Message};
 use crate::user::{inject_uuid_cookie, MaybeLocalUserId, User};
 use crate::util::{ExistingMessages, MaybeUserAgent, MessageFromHeaders};
+use crate::ws::WebsocketActorMessage;
 use crate::{
     random_codes::generate_code,
     util::{ClientIp, MinifiedHtml, WR},
@@ -20,7 +21,6 @@ use tokio::task;
 #[template(path = "messages.component.askama.html")]
 pub struct MessagesComponentTemplate {
     messages: Vec<Message>,
-    admin: bool,
 }
 
 #[derive(Template)]
@@ -61,7 +61,6 @@ pub async fn encoded_messages(
 ) -> WR<Response> {
     let messages_page = MessagesComponentTemplate {
         messages: Message::fetch_for(&pool, &user).await?,
-        admin: user.admin,
     };
 
     Ok(inject_uuid_cookie(MinifiedHtml(messages_page), &user))
@@ -155,7 +154,7 @@ async fn handle_new_user(
 }
 
 pub async fn create_message(
-    State(AppState { pool, .. }): State<AppState>,
+    State(AppState { pool, tx }): State<AppState>,
     user: User,
     content: Option<MessageFromHeaders>,
 ) -> StatusCode {
@@ -177,21 +176,23 @@ pub async fn create_message(
         }
 
         let flagged = existing.should_flag_message(&content);
-       let full_message = sqlx::query_as!(
-           FullMessage,
+        let full_message = sqlx::query_as!(
+            FullMessage,
             // language=postgresql
             "INSERT INTO messages (content, author, flagged, published)
-             VALUES ($1, $2, $3, $4)",
+             VALUES ($1, $2, $3, $4) RETURNING *",
             content,
             user.id,
             flagged,
             !flagged
         )
-        .execute(&pool)
+        .fetch_one(&pool)
         .await
         .expect("failed to insert message");
-        
-        
+
+        tx.send(WebsocketActorMessage::Message(full_message))
+            .await
+            .expect("failed to send message");
     });
 
     StatusCode::NOT_FOUND

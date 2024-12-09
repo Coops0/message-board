@@ -4,7 +4,6 @@ use crate::AppState;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
 use axum::response::Response;
-use futures::TryFutureExt;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -45,8 +44,9 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
                     .filter(|(_, owner)| !owner.id.eq(&message.author))
                     .filter_map(|(socket, msg)| -> Option<SendMessageFuture> {
                         let ws_msg = message
-                            .encode_to_message_for(&mut FullMessageEncoder, msg)
+                            .encode_message_for(&mut FullMessageEncoder, msg)
                             .ok()?;
+                        
                         Some(Box::pin(socket.send(ws_msg)) as SendMessageFuture)
                     })
                     .collect();
@@ -63,9 +63,10 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
 
 struct FullMessageEncoder;
 
+#[allow(clippy::cast_possible_truncation)]
 fn encode_str(content: &str, dst: &mut BytesMut) {
     let content_bytes = content.as_bytes();
-    dst.put_u64(content_bytes.len() as u64);
+    dst.put_u32(content_bytes.len() as u32);
     dst.put_slice(content_bytes);
 }
 
@@ -81,7 +82,7 @@ impl Encoder<&FullMessage> for FullMessageEncoder {
 }
 
 impl FullMessage {
-    fn encode_to_message_for(
+    fn encode_message_for(
         &self,
         encoder: &mut FullMessageEncoder,
         user: &User,

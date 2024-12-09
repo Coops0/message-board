@@ -7,10 +7,11 @@ mod ws;
 
 use crate::user::{inject_uuid_cookie, User};
 use crate::util::WebErrorExtensionMarker;
+use crate::ws::WebsocketActorMessage;
 use axum::extract::{OriginalUri, Request, State};
 use axum::http::StatusCode;
 use axum::middleware::{from_fn_with_state, Next};
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{RequestExt, Router};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -20,12 +21,11 @@ use tokio::sync::mpsc::Sender;
 use tracing::level_filters::LevelFilter;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
-use crate::ws::WebsocketActorMessage;
 
 #[derive(Clone)]
 pub struct AppState {
     pool: PgPool,
-    tx: Sender<WebsocketActorMessage>
+    tx: Sender<WebsocketActorMessage>,
 }
 
 #[tokio::main]
@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     } else {
         info!("migrations ran successfully / db connection valid");
     }
-    
+
     let (tx, rx) = tokio::sync::mpsc::channel(100);
 
     let state = AppState { pool, tx };
@@ -74,14 +74,14 @@ async fn main() -> anyhow::Result<()> {
 
     #[allow(clippy::let_underscore_future)]
     let _ = tokio::spawn(ws::socket_owner_actor(rx));
-    
+
     let listener = tokio::net::TcpListener::bind("0.0.0.0:4000").await?;
     axum::serve(listener, app.into_make_service())
         .await
         .map_err(Into::into)
 }
 
-pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> Response {
+pub async fn fallback(OriginalUri(_original_uri): OriginalUri) -> Response {
     // Redirect::temporary(original_uri.path())
     (StatusCode::INTERNAL_SERVER_ERROR, "nah").into_response()
 }

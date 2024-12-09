@@ -12,6 +12,7 @@ use sqlx::FromRow;
 use std::convert::Infallible;
 use uuid::Uuid;
 
+#[allow(dead_code)]
 #[derive(FromRow, Clone)]
 pub struct User {
     pub id: Uuid,

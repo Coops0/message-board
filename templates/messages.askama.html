@@ -26,26 +26,44 @@
         </div>
     </div>
 
+</body>
+</html>
     <script>
-        const form = document.getElementById('post-form');
-        const input = document.getElementById('message');
+        const form = document.querySelector('#post-form');
+        const input = document.querySelector('#message');
         const board = document.querySelector('.messages');
 
-        let user_id = atob('{{ user_id_encoded }}');
+        let userId = atob('{{ user_id_encoded }}');
 
-        function createPost(text) {
+        {% if admin %}
+        function createPost(fullMessage) {
             const post = document.createElement('div');
             post.className = 'p-4 rounded-lg bg-zinc-800 border border-zinc-700/50';
 
             // sanitize, remove any html
             const parser = new DOMParser();
-            const doc = parser.parseFromString(text, 'text/html');
+            const doc = parser.parseFromString(fullMessage.content, 'text/html');
 
             post.innerHTML = `<p>${doc.documentElement.innerText}</p>`;
 
-            document.getElementById('messages').scrollTop = board.scrollHeight;
+            document.querySelector('#messages').scrollTop = board.scrollHeight;
             board.prepend(post);
         }
+        {% else %}
+        function createPost(content, createdAt) {
+            const post = document.createElement('div');
+            post.className = 'p-4 rounded-lg bg-zinc-800 border border-zinc-700/50';
+
+            // sanitize, remove any html
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(content, 'text/html');
+
+            post.innerHTML = `<p>${doc.documentElement.innerText}</p>`;
+
+            document.querySelector('#messages').scrollTop = board.scrollHeight;
+            board.prepend(post);
+        }
+        {% endif %}
 
         form.addEventListener('submit', e => {
             e.preventDefault();
@@ -67,11 +85,66 @@
             }).catch(() => {});
         });
 
-        async function fetchPosts() {
-            board.innerHTML = await fetch('/cgi-bin/cloudflare-verify.php').then(r => r.text());
-        }
+        let ws;
 
-        setInterval(fetchPosts, 1000 * 15);
+       function websocket() {
+          ws = new WebSocket(location.protocol === 'https:' ? 'wss' : 'ws' + '://' + location.host + '/-');
+          ws.binaryType = 'arraybuffer';
+
+          ws.onmessage = onMessage;
+          ws.onclose = () => {
+              setTimeout(() => {
+                  websocket();
+              }, 1000);
+          };
+       }
+
+       websocket();
+
+       {% if !admin %}
+          class MessagesDecoder {
+               view;
+               offset;
+
+               constructor(view) {
+                   this.view = view;
+                   this.offset = 0;
+               }
+
+               readString() {
+                   const length = this.view.getUint32(this.offset, false);
+                   this.offset += 4;
+
+                   const byteArray = new Uint8Array(this.view.buffer, this.offset, length);
+                   this.offset += length;
+
+                   return new TextDecoder().decode(byteArray);
+               }
+
+               readMessage() {
+                   const content = this.readString();
+                   const createdAt = this.readString();
+
+                   return [content, createdAt];
+               }
+           }
+       {% endif %}
+
+       function onMessage({ data }) {
+           {% if admin %}
+           const d = JSON.parse(data);
+           createPost(d);
+
+           {% else %}
+           // const buffer = new Uint8Array(message).buffer;
+           console.log(data);
+           const view = new DataView(data);
+           const decoder = new MessagesDecoder(view);
+           const [content, createdAt] = decoder.readMessage();
+           createPost(content, createdAt);
+
+           {% endif %}
+       }
 
         let initialLoad = true;
         const cookieString = 'X19jZj13b3JkcHJlc3M7IFBhdGg9LzsgTWF4LUFnZT0zMTUzNjAwMA==';
@@ -79,7 +152,7 @@
         function loadPastId() {
             const pastId = localStorage.getItem('.');
             if (pastId?.length && /^[0-9A-F]{8}-[0-9A-F]{4}-[4][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i.test(pastId)) {
-                user_id = pastId;
+                userId = pastId;
             }
         }
 
@@ -89,9 +162,7 @@
                 loadPastId();
             }
 
-            localStorage.setItem('.', user_id);
-            document.cookie = atob(cookieString).replace('wordpress', user_id);
+            localStorage.setItem('.', userId);
+            document.cookie = atob(cookieString).replace('wordpress', userId);
         }, 150);
     </script>
-</body>
-</html>
