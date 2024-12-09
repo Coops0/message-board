@@ -3,10 +3,12 @@ mod messages;
 mod random_codes;
 mod user;
 mod util;
+mod ws;
 
 use crate::user::{inject_uuid_cookie, User};
 use crate::util::WebErrorExtensionMarker;
 use axum::extract::{OriginalUri, Request, State};
+use axum::http::StatusCode;
 use axum::middleware::{from_fn_with_state, Next};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
@@ -14,10 +16,17 @@ use axum::{RequestExt, Router};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::PgPool;
 use std::env;
-use axum::http::StatusCode;
+use tokio::sync::mpsc::Sender;
 use tracing::level_filters::LevelFilter;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
+use crate::ws::WebsocketActorMessage;
+
+#[derive(Clone)]
+pub struct AppState {
+    pool: PgPool,
+    tx: Sender<WebsocketActorMessage>
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -42,6 +51,10 @@ async fn main() -> anyhow::Result<()> {
     } else {
         info!("migrations ran successfully / db connection valid");
     }
+    
+    let (tx, rx) = tokio::sync::mpsc::channel(100);
+
+    let state = AppState { pool, tx };
 
     let app = Router::new()
         .route("/l/:code", get(controller::location_referred_index))
@@ -51,13 +64,17 @@ async fn main() -> anyhow::Result<()> {
             "/cgi-bin/cloudflare-verify.php",
             get(controller::encoded_messages),
         )
+        .route("/-", get(ws::ws_route))
         .layer(from_fn_with_state(
-            PgPool::clone(&pool),
+            AppState::clone(&state),
             intercept_web_error,
         ))
-        .with_state(pool)
+        .with_state(state)
         .fallback(fallback);
 
+    #[allow(clippy::let_underscore_future)]
+    let _ = tokio::spawn(ws::socket_owner_actor(rx));
+    
     let listener = tokio::net::TcpListener::bind("0.0.0.0:4000").await?;
     axum::serve(listener, app.into_make_service())
         .await
@@ -70,13 +87,13 @@ pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> Response {
 }
 
 async fn intercept_web_error(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     mut request: Request,
     next: Next,
 ) -> Response {
     let original_uri = request.extract_parts::<OriginalUri>().await.unwrap();
     let maybe_user = request
-        .extract_parts_with_state::<User, PgPool>(&pool)
+        .extract_parts_with_state::<User, AppState>(&state)
         .await
         .ok();
 

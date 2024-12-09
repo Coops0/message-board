@@ -1,4 +1,5 @@
 use crate::util::WE;
+use crate::AppState;
 use anyhow::anyhow;
 use axum::extract::FromRequestParts;
 use axum::http::header::{COOKIE, SET_COOKIE};
@@ -7,11 +8,11 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::RequestPartsExt;
 use base64::Engine;
 use chrono::{DateTime, Utc};
-use sqlx::{FromRow, PgPool};
+use sqlx::FromRow;
 use std::convert::Infallible;
 use uuid::Uuid;
 
-#[derive(FromRow)]
+#[derive(FromRow, Clone)]
 pub struct User {
     pub id: Uuid,
     pub code: String,
@@ -66,10 +67,13 @@ impl<S> FromRequestParts<S> for MaybeLocalUserId {
 }
 
 #[axum::async_trait]
-impl FromRequestParts<PgPool> for User {
+impl FromRequestParts<AppState> for User {
     type Rejection = WE;
 
-    async fn from_request_parts(parts: &mut Parts, pool: &PgPool) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        AppState { pool, .. }: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let local_user_id = parts
             .extract::<MaybeLocalUserId>()
             .await

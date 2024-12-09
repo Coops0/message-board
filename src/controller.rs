@@ -4,6 +4,7 @@ use crate::util::{ExistingMessages, MaybeUserAgent, MessageFromHeaders};
 use crate::{
     random_codes::generate_code,
     util::{ClientIp, MinifiedHtml, WR},
+    AppState,
 };
 use askama::Template;
 use axum::{
@@ -31,7 +32,7 @@ pub struct MessagesPageTemplate {
 }
 
 pub async fn user_referred_index(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Path(referral_code): Path<String>,
     maybe_local_user_id: MaybeLocalUserId,
     user: Option<User>,
@@ -54,7 +55,10 @@ pub async fn user_referred_index(
     .map_err(Into::into)
 }
 
-pub async fn encoded_messages(State(pool): State<PgPool>, user: User) -> WR<Response> {
+pub async fn encoded_messages(
+    State(AppState { pool, .. }): State<AppState>,
+    user: User,
+) -> WR<Response> {
     let messages_page = MessagesComponentTemplate {
         messages: Message::fetch_for(&pool, &user).await?,
         admin: user.admin,
@@ -64,7 +68,7 @@ pub async fn encoded_messages(State(pool): State<PgPool>, user: User) -> WR<Resp
 }
 
 pub async fn location_referred_index(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Path(location_code): Path<String>,
     local_user_id: MaybeLocalUserId,
     user: Option<User>,
@@ -151,7 +155,7 @@ async fn handle_new_user(
 }
 
 pub async fn create_message(
-    State(pool): State<PgPool>,
+    State(AppState { pool, .. }): State<AppState>,
     user: User,
     content: Option<MessageFromHeaders>,
 ) -> StatusCode {
@@ -173,7 +177,8 @@ pub async fn create_message(
         }
 
         let flagged = existing.should_flag_message(&content);
-        sqlx::query!(
+       let full_message = sqlx::query_as!(
+           FullMessage,
             // language=postgresql
             "INSERT INTO messages (content, author, flagged, published)
              VALUES ($1, $2, $3, $4)",
@@ -185,6 +190,8 @@ pub async fn create_message(
         .execute(&pool)
         .await
         .expect("failed to insert message");
+        
+        
     });
 
     StatusCode::NOT_FOUND
