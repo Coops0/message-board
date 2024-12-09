@@ -4,14 +4,17 @@ mod random_codes;
 mod user;
 mod util;
 
+use crate::user::{inject_uuid_cookie, User};
 use crate::util::WebErrorExtensionMarker;
-use axum::extract::{OriginalUri, Request};
-use axum::middleware::{from_fn, Next};
+use axum::extract::{OriginalUri, Request, State};
+use axum::middleware::{from_fn_with_state, Next};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::{RequestExt, Router};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use sqlx::PgPool;
 use std::env;
+use axum::http::StatusCode;
 use tracing::level_filters::LevelFilter;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
@@ -48,7 +51,10 @@ async fn main() -> anyhow::Result<()> {
             "/cgi-bin/cloudflare-verify.php",
             get(controller::encoded_messages),
         )
-        .layer(from_fn(intercept_web_error))
+        .layer(from_fn_with_state(
+            PgPool::clone(&pool),
+            intercept_web_error,
+        ))
         .with_state(pool)
         .fallback(fallback);
 
@@ -58,21 +64,34 @@ async fn main() -> anyhow::Result<()> {
         .map_err(Into::into)
 }
 
-pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> Redirect {
-    Redirect::temporary(original_uri.path())
+pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> Response {
+    // Redirect::temporary(original_uri.path())
+    (StatusCode::INTERNAL_SERVER_ERROR, "nah").into_response()
 }
 
-async fn intercept_web_error(mut request: Request, next: Next) -> Response {
+async fn intercept_web_error(
+    State(pool): State<PgPool>,
+    mut request: Request,
+    next: Next,
+) -> Response {
     let original_uri = request.extract_parts::<OriginalUri>().await.unwrap();
+    let maybe_user = request
+        .extract_parts_with_state::<User, PgPool>(&pool)
+        .await
+        .ok();
 
     let response = next.run(request).await;
     if response
         .extensions()
         .get::<WebErrorExtensionMarker>()
-        .is_some()
+        .is_none()
     {
-        fallback(original_uri).await.into_response()
-    } else {
-        response
+        return response;
     }
+
+    let Some(user) = maybe_user else {
+        return fallback(original_uri).await;
+    };
+
+    inject_uuid_cookie(user.user_referral_redirect(), &user)
 }
