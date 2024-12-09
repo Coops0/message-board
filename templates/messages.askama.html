@@ -50,7 +50,7 @@
             board.prepend(post);
         }
         {% else %}
-        function createPost(content, createdAt) {
+        function createPost({ content, createdAt }) {
             const post = document.createElement('div');
             post.className = 'p-4 rounded-lg bg-zinc-800 border border-zinc-700/50';
 
@@ -88,7 +88,7 @@
         let ws;
 
        function websocket() {
-          ws = new WebSocket(location.protocol === 'https:' ? 'wss' : 'ws' + '://' + location.host + '/-');
+          ws = new WebSocket((location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/-');
           ws.binaryType = 'arraybuffer';
 
           ws.onmessage = onMessage;
@@ -121,8 +121,8 @@
                    const userIdBytes = new TextEncoder().encode(userId);
                    const keyBytes = userIdBytes.slice(0, 16);
 
-                   const key = await crypto.subtle.importKey("raw", keyBytes, "AES-CBC", false, ["decrypt"]);
-                   const decryptedBytes = await window.crypto.subtle.decrypt({ name: "AES-CBC", iv }, key, byteArray);
+                   const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-CBC', false, ['decrypt']);
+                   const decryptedBytes = await window.crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, byteArray);
 
                    return new TextDecoder().decode(decryptedBytes);
                }
@@ -134,12 +134,12 @@
                    const content = await this.readString(iv);
                    const createdAt = await this.readString(iv);
 
-                   return [content, createdAt];
+                   return { content, createdAt };
                }
            }
        {% endif %}
 
-       function onMessage({ data }) {
+       async function onMessage({ data }) {
            {% if admin %}
            const d = JSON.parse(data);
            createPost(d);
@@ -147,8 +147,8 @@
            {% else %}
            const view = new DataView(data);
            const decoder = new MessagesDecoder(view);
-           const [content, createdAt] = decoder.readMessage();
-           createPost(content, createdAt);
+           const standardMessage = await decoder.readMessage();
+           createPost(standardMessage);
 
            {% endif %}
        }

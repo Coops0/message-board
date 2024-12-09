@@ -34,7 +34,8 @@ pub enum WebsocketActorMessage {
     Message(FullMessage),
 }
 
-type SendMessageFuture<'a> = Pin<Box<dyn Future<Output = Result<(), axum::Error>> + Send + 'a>>;
+type SendMessageFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<(), (axum::Error, Uuid)>> + Send + 'a>>;
 
 pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
     let mut sockets: Vec<(WebSocket, User)> = Vec::new();
@@ -50,8 +51,10 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
                         let mut message_enc = FullMessageEncoder(user.id);
 
                         let ws_msg = message.encode_message_for(&mut message_enc, user).ok()?;
+                        let fut =
+                            async move { socket.send(ws_msg).await.map_err(|e| (e, user.id)) };
 
-                        Some(Box::pin(socket.send(ws_msg)) as SendMessageFuture)
+                        Some(Box::pin(fut) as SendMessageFuture)
                     })
                     .collect();
 
@@ -59,7 +62,11 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
                     .await
                     .into_iter()
                     .filter_map(Result::err)
-                    .for_each(|e| warn!("error sending ws message: {e:?}"));
+                    .for_each(|(e, id)| {
+                        warn!("error sending ws message: {e:?}");
+                        // remove any dead sockets
+                        sockets.retain(|(_, user)| !user.id.eq(&id));
+                    });
             }
         }
     }

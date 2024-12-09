@@ -13,7 +13,7 @@ use std::net::IpAddr;
 use tracing::{info, warn};
 
 #[derive(Debug)]
-pub struct WE(anyhow::Error);
+pub struct WE(pub anyhow::Error);
 
 impl<E: Into<anyhow::Error>> From<E> for WE {
     fn from(e: E) -> Self {

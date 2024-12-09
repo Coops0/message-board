@@ -75,16 +75,16 @@ impl FromRequestParts<AppState> for User {
         parts: &mut Parts,
         AppState { pool, .. }: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let local_user_id = parts
-            .extract::<MaybeLocalUserId>()
-            .await
-            .map_err(|_| anyhow!("failed to get local user id"))?;
+        let Ok(MaybeLocalUserId(Some(local_user_id))) = parts.extract::<MaybeLocalUserId>().await
+        else {
+            return Err(WE(anyhow!("failed to get local user id")));
+        };
 
         sqlx::query_as!(
             User,
             // language=postgresql
             "SELECT * FROM users WHERE id = $1 LIMIT 1",
-            local_user_id.0
+            local_user_id
         )
         .fetch_one(pool)
         .await
