@@ -4,6 +4,9 @@ use crate::AppState;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
 use axum::response::Response;
+use cbc::cipher::block_padding::Pkcs7;
+use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+use cbc::Encryptor;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -11,6 +14,7 @@ use tokio::sync::mpsc::Receiver;
 use tokio_util::bytes::{BufMut, BytesMut};
 use tokio_util::codec::Encoder;
 use tracing::warn;
+use uuid::Uuid;
 
 #[allow(clippy::unused_async)]
 pub async fn ws_route(
@@ -42,11 +46,11 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
                 let send_futures: Vec<SendMessageFuture> = sockets
                     .iter_mut()
                     .filter(|(_, owner)| !owner.id.eq(&message.author))
-                    .filter_map(|(socket, msg)| -> Option<SendMessageFuture> {
-                        let ws_msg = message
-                            .encode_message_for(&mut FullMessageEncoder, msg)
-                            .ok()?;
-                        
+                    .filter_map(|(socket, user)| -> Option<SendMessageFuture> {
+                        let mut message_enc = FullMessageEncoder(user.id);
+
+                        let ws_msg = message.encode_message_for(&mut message_enc, user).ok()?;
+
                         Some(Box::pin(socket.send(ws_msg)) as SendMessageFuture)
                     })
                     .collect();
@@ -61,21 +65,32 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
     }
 }
 
-struct FullMessageEncoder;
+struct FullMessageEncoder(Uuid);
+
+type Aes128CbcEnc = Encryptor<aes::Aes128>;
 
 #[allow(clippy::cast_possible_truncation)]
-fn encode_str(content: &str, dst: &mut BytesMut) {
-    let content_bytes = content.as_bytes();
-    dst.put_u32(content_bytes.len() as u32);
-    dst.put_slice(content_bytes);
+fn encode_and_encrypt_str(encryptor: Aes128CbcEnc, content: &str, dst: &mut BytesMut) {
+    let ct = encryptor.encrypt_padded_vec_mut::<Pkcs7>(content.as_bytes());
+
+    dst.put_u32(ct.len() as u32);
+    dst.extend_from_slice(&ct);
 }
 
 impl Encoder<&FullMessage> for FullMessageEncoder {
     type Error = io::Error;
 
     fn encode(&mut self, item: &FullMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        encode_str(&item.content, dst);
-        encode_str(&item.created_at.to_string(), dst);
+        let uuid_string = self.0.to_string();
+
+        let key = &uuid_string.as_bytes()[0..16];
+        let iv = rand::random::<[u8; 16]>();
+
+        let encryptor = Aes128CbcEnc::new(key.into(), iv.as_ref().into());
+
+        dst.put(&iv[..]);
+        encode_and_encrypt_str(Encryptor::clone(&encryptor), &item.content, dst);
+        encode_and_encrypt_str(encryptor, &item.created_at.to_string(), dst);
 
         Ok(())
     }

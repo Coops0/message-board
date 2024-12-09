@@ -65,12 +65,12 @@ async fn main() -> anyhow::Result<()> {
             get(controller::encoded_messages),
         )
         .route("/-", get(ws::ws_route))
+        .fallback(inner_fallback)
         .layer(from_fn_with_state(
             AppState::clone(&state),
             intercept_web_error,
         ))
-        .with_state(state)
-        .fallback(fallback);
+        .with_state(state);
 
     #[allow(clippy::let_underscore_future)]
     let _ = tokio::spawn(ws::socket_owner_actor(rx));
@@ -81,6 +81,15 @@ async fn main() -> anyhow::Result<()> {
         .map_err(Into::into)
 }
 
+#[allow(clippy::unused_async)]
+async fn inner_fallback(original_uri: OriginalUri, user: Option<User>) -> Response {
+    match user {
+        Some(user) => inject_uuid_cookie(user.user_referral_redirect(), &user),
+        None => fallback(original_uri).await,
+    }
+}
+
+#[allow(clippy::unused_async)]
 pub async fn fallback(OriginalUri(_original_uri): OriginalUri) -> Response {
     // Redirect::temporary(original_uri.path())
     (StatusCode::INTERNAL_SERVER_ERROR, "nah").into_response()

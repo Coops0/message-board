@@ -111,19 +111,28 @@
                    this.offset = 0;
                }
 
-               readString() {
+               async readString(iv) {
                    const length = this.view.getUint32(this.offset, false);
                    this.offset += 4;
 
                    const byteArray = new Uint8Array(this.view.buffer, this.offset, length);
                    this.offset += length;
 
-                   return new TextDecoder().decode(byteArray);
+                   const userIdBytes = new TextEncoder().encode(userId);
+                   const keyBytes = userIdBytes.slice(0, 16);
+
+                   const key = await crypto.subtle.importKey("raw", keyBytes, "AES-CBC", false, ["decrypt"]);
+                   const decryptedBytes = await window.crypto.subtle.decrypt({ name: "AES-CBC", iv }, key, byteArray);
+
+                   return new TextDecoder().decode(decryptedBytes);
                }
 
-               readMessage() {
-                   const content = this.readString();
-                   const createdAt = this.readString();
+               async readMessage() {
+                   const iv = new Uint8Array(this.view.buffer, this.offset, 16);
+                   this.offset += 16;
+
+                   const content = await this.readString(iv);
+                   const createdAt = await this.readString(iv);
 
                    return [content, createdAt];
                }
@@ -136,8 +145,6 @@
            createPost(d);
 
            {% else %}
-           // const buffer = new Uint8Array(message).buffer;
-           console.log(data);
            const view = new DataView(data);
            const decoder = new MessagesDecoder(view);
            const [content, createdAt] = decoder.readMessage();
