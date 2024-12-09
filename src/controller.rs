@@ -1,4 +1,4 @@
-use crate::messages::{Message, MessagesListEncoder};
+use crate::messages::Message;
 use crate::user::{inject_uuid_cookie, MaybeLocalUserId, User};
 use crate::util::{ExistingMessages, MaybeUserAgent, MessageFromHeaders};
 use crate::{
@@ -14,8 +14,13 @@ use axum::{
 use sqlx::PgPool;
 use std::net::IpAddr;
 use tokio::task;
-use tokio_util::bytes::BytesMut;
-use tokio_util::codec::Encoder;
+
+#[derive(Template)]
+#[template(path = "messages.component.askama.html")]
+pub struct MessagesComponentTemplate {
+    messages: Vec<Message>,
+    admin: bool,
+}
 
 #[derive(Template)]
 #[template(path = "messages.askama.html")]
@@ -50,13 +55,12 @@ pub async fn user_referred_index(
 }
 
 pub async fn encoded_messages(State(pool): State<PgPool>, user: User) -> WR<Response> {
-    let messages = Message::fetch_for(&pool, &user).await?;
-    let mut encoder = MessagesListEncoder;
+    let messages_page = MessagesComponentTemplate {
+        messages: Message::fetch_for(&pool, &user).await?,
+        admin: user.admin,
+    };
 
-    let mut body = BytesMut::new();
-    encoder.encode(messages, &mut body)?;
-
-    Ok(inject_uuid_cookie(body, &user))
+    Ok(inject_uuid_cookie(MinifiedHtml(messages_page), &user))
 }
 
 pub async fn location_referred_index(
