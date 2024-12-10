@@ -124,7 +124,7 @@ async fn handle_existing_user(
         messages: sqlx::query_as!(
             StandardMessage,
             // language=postgresql
-            "SELECT content, created_at FROM messages
+            "SELECT content, created_at, author FROM messages
                                WHERE (published OR author = $1)
                                ORDER BY created_at DESC LIMIT 40",
             user.id

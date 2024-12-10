@@ -5,6 +5,8 @@ const board = document.querySelector('.messages');
 // noinspection JSUnresolvedReference
 let userId = atob(balled);
 
+const authorColors = new Map();
+
 let encryptionKey = null;
 async function getEncryptionKey() {
     if (!encryptionKey) {
@@ -16,7 +18,13 @@ async function getEncryptionKey() {
     return encryptionKey;
 }
 
-function createPost({ content, createdAt }) {
+function createPost({ content, createdAt, author }) {
+    let color = authorColors.get(author);
+    if (!color) {
+        color = `hsl(${Math.floor(Math.random() * 360)}, 100%, 50%)`;
+        authorColors.set(author, color);
+    }
+
     const post = document.createElement('div');
     post.className = 'p-4 rounded-lg bg-zinc-800 border border-zinc-700/50';
 
@@ -24,7 +32,7 @@ function createPost({ content, createdAt }) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(content, 'text/html');
 
-    post.innerHTML = `<p>${doc.documentElement.innerText}</p>`;
+    post.innerHTML = `<p style="color: ${color}" >${doc.documentElement.innerText}</p>`;
 
     document.querySelector('#messages').scrollTop = board.scrollHeight;
     board.prepend(post);
@@ -102,8 +110,9 @@ class MessagesDecoder {
 
         const content = await this.readString(iv);
         const createdAt = await this.readString(iv);
+        const author = await this.readString(iv);
 
-        return { content, createdAt };
+        return { content, createdAt, author };
     }
 }
 

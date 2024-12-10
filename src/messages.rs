@@ -7,6 +7,7 @@ use uuid::Uuid;
 pub struct StandardMessage {
     pub content: String,
     pub created_at: DateTime<Utc>,
+    pub author: Uuid
 }
 
 #[derive(Serialize, FromRow)]

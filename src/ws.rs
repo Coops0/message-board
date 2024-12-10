@@ -92,7 +92,8 @@ impl Encoder<&FullMessage> for FullMessageEncoder {
 
         dst.put(&iv[..]);
         encode_and_encrypt_str(Encryptor::clone(&encryptor), &item.content, dst);
-        encode_and_encrypt_str(encryptor, &item.created_at.to_string(), dst);
+        encode_and_encrypt_str(Encryptor::clone(&encryptor), &item.created_at.to_string(), dst);
+        encode_and_encrypt_str(encryptor, &item.author.to_string(), dst);
 
         Ok(())
     }
