@@ -10,7 +10,6 @@ use rustrict::{Censor, Type};
 use sqlx::FromRow;
 use std::convert::Infallible;
 use std::net::IpAddr;
-use cbc::{Decryptor, Encryptor};
 use tracing::{info, warn};
 
 #[derive(Debug)]
