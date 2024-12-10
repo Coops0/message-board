@@ -1,18 +1,21 @@
 use crate::messages::{FullMessage, Message};
 use crate::user::{inject_uuid_cookie, MaybeLocalUserId, User};
-use crate::util::{ExistingMessages, MaybeUserAgent, MessageFromHeaders};
+use crate::util::{ExistingMessages, MaybeUserAgent, MessageAndIvFromHeaders};
 use crate::ws::WebsocketActorMessage;
 use crate::{
     random_codes::generate_code,
     util::{ClientIp, MinifiedHtml, WR},
     AppState,
 };
+use aes::cipher::block_padding::Pkcs7;
 use askama::Template;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::Response,
 };
+use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+use cbc::Decryptor;
 use sqlx::PgPool;
 use std::net::IpAddr;
 use tokio::task;
@@ -115,7 +118,7 @@ async fn handle_existing_user(
     let messages = Message::fetch_for(pool, &user).await?;
     let messages_page = MessagesPageTemplate {
         messages,
-        user_id_encoded: user.encode_id(),
+        user_id_encoded: user.encoded_id(),
         admin: user.admin,
     };
 
@@ -156,16 +159,34 @@ async fn handle_new_user(
 pub async fn create_message(
     State(AppState { pool, tx }): State<AppState>,
     user: User,
-    content: Option<MessageFromHeaders>,
+    header_content: Option<MessageAndIvFromHeaders>,
 ) -> StatusCode {
     task::spawn(async move {
         if user.banned {
             return;
         }
 
-        let Some(MessageFromHeaders(content)) = content else {
+        let Some(MessageAndIvFromHeaders(encrypted_content_bytes, iv)) = header_content else {
             return;
         };
+
+        let decryptor = Decryptor::<aes::Aes128>::new(
+            user.encryption_key().as_slice().into(),
+            iv.as_slice().into(),
+        );
+        let Ok(decrypted_content) = decryptor.decrypt_padded_vec_mut::<Pkcs7>(encrypted_content_bytes.as_slice())
+        else {
+            return;
+        };
+
+        let Ok(unclean_content) = String::from_utf8(decrypted_content) else {
+            return;
+        };
+
+        let content = ammonia::clean(&unclean_content);
+        if content.is_empty() {
+            return;
+        }
 
         let Ok(existing) = ExistingMessages::fetch_for(&pool, &user).await else {
             return;

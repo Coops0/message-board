@@ -48,7 +48,7 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
                     .iter_mut()
                     .filter(|(_, owner)| !owner.id.eq(&message.author))
                     .filter_map(|(socket, user)| -> Option<SendMessageFuture> {
-                        let mut message_enc = FullMessageEncoder(user.id);
+                        let mut message_enc = FullMessageEncoder(user.encryption_key());
 
                         let ws_msg = message.encode_message_for(&mut message_enc, user).ok()?;
                         let fut =
@@ -72,12 +72,10 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
     }
 }
 
-struct FullMessageEncoder(Uuid);
-
-type Aes128CbcEnc = Encryptor<aes::Aes128>;
+struct FullMessageEncoder(Vec<u8>);
 
 #[allow(clippy::cast_possible_truncation)]
-fn encode_and_encrypt_str(encryptor: Aes128CbcEnc, content: &str, dst: &mut BytesMut) {
+fn encode_and_encrypt_str(encryptor: Encryptor<aes::Aes128>, content: &str, dst: &mut BytesMut) {
     let ct = encryptor.encrypt_padded_vec_mut::<Pkcs7>(content.as_bytes());
 
     dst.put_u32(ct.len() as u32);
@@ -88,12 +86,9 @@ impl Encoder<&FullMessage> for FullMessageEncoder {
     type Error = io::Error;
 
     fn encode(&mut self, item: &FullMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        let uuid_string = self.0.to_string();
-
-        let key = &uuid_string.as_bytes()[0..16];
         let iv = rand::random::<[u8; 16]>();
 
-        let encryptor = Aes128CbcEnc::new(key.into(), iv.as_ref().into());
+        let encryptor = Encryptor::<aes::Aes128>::new((&self.0[..]).into(), iv.as_ref().into());
 
         dst.put(&iv[..]);
         encode_and_encrypt_str(Encryptor::clone(&encryptor), &item.content, dst);

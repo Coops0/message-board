@@ -10,6 +10,7 @@ use rustrict::{Censor, Type};
 use sqlx::FromRow;
 use std::convert::Infallible;
 use std::net::IpAddr;
+use cbc::{Decryptor, Encryptor};
 use tracing::{info, warn};
 
 #[derive(Debug)]
@@ -105,34 +106,42 @@ where
     }
 }
 
-pub struct MessageFromHeaders(pub String);
+pub struct MessageAndIvFromHeaders(pub Vec<u8>, pub Vec<u8>);
 
 #[axum::async_trait]
-impl<S> FromRequestParts<S> for MessageFromHeaders
+impl<S> FromRequestParts<S> for MessageAndIvFromHeaders
 where
     S: Send + Sync,
 {
     type Rejection = WE;
 
     async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
-        let raw_header = parts
+        let raw_content_header = parts
             .headers
             .get("CF-Cache-Identifier")
             .context("failed to get header")?
             .as_bytes();
 
-        let content_bytes = base64::engine::general_purpose::STANDARD.decode(raw_header)?;
+        let raw_iv_header = parts
+            .headers
+            .get("Uses-Agent")
+            .and_then(|ua| ua.to_str().ok())
+            .and_then(|ua| ua.split_once("Mozilla/5.0 (Windows NT 10.0; Win64; x64; "))
+            .and_then(|(_, iv)| iv.split(')').next())
+            .context("failed to get iv")?
+            .as_bytes();
 
+        let content_bytes = base64::engine::general_purpose::STANDARD.decode(raw_content_header)?;
         if content_bytes.len() > 1024 {
             return Err(WE(anyhow::anyhow!("content too long")));
         }
 
-        let content = ammonia::clean(&String::from_utf8(content_bytes)?);
-        if content.is_empty() {
-            Err(WE(anyhow::anyhow!("content is empty")))
-        } else {
-            Ok(Self(content))
+        let iv_bytes = base64::engine::general_purpose::STANDARD.decode(raw_iv_header)?;
+        if iv_bytes.len() != 16 {
+            return Err(WE(anyhow::anyhow!("iv length is not 16")));
         }
+
+        Ok(Self(content_bytes, iv_bytes))
     }
 }
 
