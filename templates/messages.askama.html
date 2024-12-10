@@ -26,12 +26,12 @@
         </div>
     </div>
 
+<script>const balled = '{{ user_id_encoded }}';</script>
 <script>
- const balled = '{{ user_id_encoded }}';
  {% if admin %}
- {% include "../assets/admin-script.js" %}
+ {%+ include "../assets/admin-script.js" +%}
  {% else %}
- {% include "../assets/user-script.js" %}
+ {%+ include "../assets/user-script.js" +%}
  {% endif %}
 </script>
 </body>
