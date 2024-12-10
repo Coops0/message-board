@@ -68,9 +68,7 @@ function websocket() {
 
     ws.onmessage = onMessage;
     ws.onclose = () => {
-        setTimeout(() => {
-            websocket();
-        }, 1000);
+        setTimeout(() => websocket(), 1000);
     };
 }
 

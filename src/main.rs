@@ -4,6 +4,7 @@ mod random_codes;
 mod user;
 mod util;
 mod ws;
+mod admin_controller;
 
 use crate::user::{inject_uuid_cookie, User};
 use crate::util::WebErrorExtensionMarker;
@@ -65,6 +66,7 @@ async fn main() -> anyhow::Result<()> {
             get(controller::encoded_messages),
         )
         .route("/-", get(ws::ws_route))
+        .nest("/admin", admin_controller::admin_controller(AppState::clone(&state)))
         .fallback(inner_fallback)
         .layer(from_fn_with_state(
             AppState::clone(&state),

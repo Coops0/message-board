@@ -10,10 +10,11 @@ use base64::Engine;
 use chrono::{DateTime, Utc};
 use sqlx::FromRow;
 use std::convert::Infallible;
+use serde::Serialize;
 use uuid::Uuid;
 
 #[allow(dead_code)]
-#[derive(FromRow, Clone)]
+#[derive(FromRow, Clone, Serialize)]
 pub struct User {
     pub id: Uuid,
     pub code: String,
