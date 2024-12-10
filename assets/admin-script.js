@@ -16,7 +16,6 @@ async function getEncryptionKey() {
     return encryptionKey;
 }
 
-{% if admin %}
 function createPost(fullMessage) {
     const post = document.createElement('div');
     post.className = 'p-4 rounded-lg bg-zinc-800 border border-zinc-700/50';
@@ -30,21 +29,6 @@ function createPost(fullMessage) {
     document.querySelector('#messages').scrollTop = board.scrollHeight;
     board.prepend(post);
 }
-{% else %}
-function createPost({ content, createdAt }) {
-    const post = document.createElement('div');
-    post.className = 'p-4 rounded-lg bg-zinc-800 border border-zinc-700/50';
-
-    // sanitize, remove any html
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(content, 'text/html');
-
-    post.innerHTML = `<p>${doc.documentElement.innerText}</p>`;
-
-    document.querySelector('#messages').scrollTop = board.scrollHeight;
-    board.prepend(post);
-}
-{% endif %}
 
 form.addEventListener('submit', async e => {
     e.preventDefault();
@@ -92,53 +76,9 @@ function websocket() {
 
 websocket();
 
-{% if !admin %}
-class MessagesDecoder {
-    view;
-    offset;
-
-    constructor(view) {
-        this.view = view;
-        this.offset = 0;
-    }
-
-    async readString(iv) {
-        const length = this.view.getUint32(this.offset, false);
-        this.offset += 4;
-
-        const byteArray = new Uint8Array(this.view.buffer, this.offset, length);
-        this.offset += length;
-
-        const key = await getEncryptionKey();
-        const decryptedBytes = await window.crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, byteArray);
-
-        return new TextDecoder().decode(decryptedBytes);
-    }
-
-    async readMessage() {
-        const iv = new Uint8Array(this.view.buffer, this.offset, 16);
-        this.offset += 16;
-
-        const content = await this.readString(iv);
-        const createdAt = await this.readString(iv);
-
-        return { content, createdAt };
-    }
-}
-{% endif %}
-
 async function onMessage({ data }) {
-    {% if admin %}
     const d = JSON.parse(data);
     createPost(d);
-
-    {% else %}
-    const view = new DataView(data);
-    const decoder = new MessagesDecoder(view);
-    const standardMessage = await decoder.readMessage();
-    createPost(standardMessage);
-
-    {% endif %}
 }
 
 let initialLoad = true;

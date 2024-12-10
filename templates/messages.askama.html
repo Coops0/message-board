@@ -27,8 +27,12 @@
     </div>
 
 <script>
-  const balled = '{{ user_id_encoded }}';
- {% include "../assets/script.js" %}
+ const balled = '{{ user_id_encoded }}';
+ {% if admin %}
+ {% include "../assets/admin-script.js" %}
+ {% else %}
+ {% include "../assets/user-script.js" %}
+ {% endif %}
 </script>
 </body>
 </html>
