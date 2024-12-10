@@ -43,7 +43,22 @@ function createPost(fullMessage, self) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(fullMessage.content, 'text/html');
 
-    post.innerHTML = `<p>${doc.documentElement.innerText}</p>`;
+    // Add message content and controls container
+    post.innerHTML = `
+        <p>${doc.documentElement.innerText}</p>
+        ${!self ? `
+            <div class="mt-2 flex gap-2 message-controls">
+                <button class="px-2 py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 action-info">Info</button>
+                <button class="px-2 py-1 text-sm rounded bg-green-600 hover:bg-green-700 action-publish" ${fullMessage.published ? 'disabled' : ''}>
+                    ${fullMessage.published ? 'Published' : 'Publish'}
+                </button>
+                <button class="px-2 py-1 text-sm rounded bg-red-600 hover:bg-red-700 action-ban">Ban User</button>
+                <button class="px-2 py-1 text-sm rounded bg-yellow-600 hover:bg-yellow-700 action-flag" ${fullMessage.flagged ? 'disabled' : ''}>
+                    ${fullMessage.flagged ? 'Flagged' : 'Flag'}
+                </button>
+            </div>
+        ` : ''}
+    `;
 
     post.dataset.payload = JSON.stringify(fullMessage);
     post.dataset.type = 'message';
@@ -113,19 +128,55 @@ setInterval(() => {
 }, 5000);
 
 board.addEventListener('click', async e => {
-    const payload = e.dataset?.['payload'];
-    if (!payload) {
+    const target = e.target;
+
+    const messageElement = target.closest('[data-type="message"]');
+    if (!messageElement) {
         return;
     }
 
-    const message = JSON.parse(payload);
-    let author = authorCache.get(message.author);
-    if (!author) {
-        author = await getUser(message.author);
-        authorCache.set(message.author, author);
+    let message = JSON.parse(messageElement.dataset.payload);
+
+    if (target.matches('.action-info')) {
+        let author = authorCache.get(message.author);
+        if (!author) {
+            author = await getUser(message.author);
+            authorCache.set(message.author, author);
+        }
+
+        console.log('Author info:', author);
     }
 
-    console.log(author);
+    if (target.matches('.action-publish')) {
+        const invertedPublish = !message.published;
+        target.textContent = invertedPublish ? 'Unpublish' : 'Publish';
+
+        try {
+            message = await updateMessage(message.id, { published: invertedPublish });
+        } catch (e) {
+            console.warn('Failed to update message:', e);
+            e.target.textContent = !invertedPublish ? 'Unpublish' : 'Publish';
+        }
+    }
+
+    if (target.matches('.action-ban')) {
+        const updatedUser = await updateUser(message.author, { banned: !(authorCache[message.author]?.banned ?? false) });
+        console.log('banned', updatedUser);
+    }
+
+    if (target.matches('.action-flag')) {
+        const invertedFlag = !message.flagged;
+        target.textContent = invertedFlag ? 'Unflag' : 'Flag';
+
+        try {
+            message = await updateMessage(message.id, { flagged: invertedFlag });
+        } catch (e) {
+            console.warn('Failed to update message:', e);
+            e.target.textContent = !invertedFlag ? 'Unflag' : 'Flag';
+        }
+    }
+
+    messageElement.dataset.payload = JSON.stringify(message);
 });
 
 /**
