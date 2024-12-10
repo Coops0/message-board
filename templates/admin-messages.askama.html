@@ -14,7 +14,7 @@
 
         <div class="flex-1 overflow-y-auto p-4" id="messages">
             <div class="messages space-y-4">
-                {% include "messages.component.askama.html" %}
+
             </div>
         </div>
 
@@ -26,13 +26,10 @@
         </div>
     </div>
 
-<script>const balled = '{{ user_id_encoded }}';</script>
 <script>
- {% if admin %}
- {%+ include "../assets/admin-script.js" +%}
- {% else %}
- {%+ include "../assets/user-script.js" +%}
- {% endif %}
+let messages = {{ messages|safe }};
+let userId = '{{ user_id }}';
+{%+ include "../assets/admin-script.js" +%}
 </script>
 </body>
 </html>

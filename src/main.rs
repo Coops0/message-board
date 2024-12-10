@@ -1,10 +1,10 @@
+mod admin_controller;
 mod controller;
 mod messages;
 mod random_codes;
 mod user;
 mod util;
 mod ws;
-mod admin_controller;
 
 use crate::user::{inject_uuid_cookie, User};
 use crate::util::WebErrorExtensionMarker;
@@ -61,12 +61,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/l/:code", get(controller::location_referred_index))
         .route("/u/:code", get(controller::user_referred_index))
         .route("/favicon.ico", get(controller::create_message))
-        .route(
-            "/cgi-bin/cloudflare-verify.php",
-            get(controller::encoded_messages),
-        )
         .route("/-", get(ws::ws_route))
-        .nest("/admin", admin_controller::admin_controller(AppState::clone(&state)))
+        .nest(
+            "/admin",
+            admin_controller::admin_controller(AppState::clone(&state)),
+        )
         .fallback(inner_fallback)
         .layer(from_fn_with_state(
             AppState::clone(&state),

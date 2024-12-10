@@ -1,4 +1,4 @@
-use crate::messages::{FullMessage, Message};
+use crate::messages::{FullMessage, StandardMessage};
 use crate::user::{inject_uuid_cookie, MaybeLocalUserId, User};
 use crate::util::{ExistingMessages, MaybeUserAgent, MessageAndIvFromHeaders};
 use crate::ws::WebsocketActorMessage;
@@ -19,19 +19,18 @@ use cbc::Decryptor;
 use sqlx::PgPool;
 use std::net::IpAddr;
 use tokio::task;
-
 #[derive(Template)]
-#[template(path = "messages.component.askama.html")]
-pub struct MessagesComponentTemplate {
-    messages: Vec<Message>,
+#[template(path = "user-messages.askama.html")]
+pub struct UserMessagesPageTemplate {
+    messages: Vec<StandardMessage>,
+    user_id_encoded: String,
 }
 
 #[derive(Template)]
-#[template(path = "messages.askama.html")]
-pub struct MessagesPageTemplate {
-    messages: Vec<Message>,
-    user_id_encoded: String,
-    admin: bool,
+#[template(path = "admin-messages.askama.html")]
+pub struct AdminMessagesPageTemplate {
+    messages: String,
+    user_id: String,
 }
 
 pub async fn user_referred_index(
@@ -56,17 +55,6 @@ pub async fn user_referred_index(
         }
     }
     .map_err(Into::into)
-}
-
-pub async fn encoded_messages(
-    State(AppState { pool, .. }): State<AppState>,
-    user: User,
-) -> WR<Response> {
-    let messages_page = MessagesComponentTemplate {
-        messages: Message::fetch_for(&pool, &user).await?,
-    };
-
-    Ok(inject_uuid_cookie(MinifiedHtml(messages_page), &user))
 }
 
 pub async fn location_referred_index(
@@ -115,14 +103,38 @@ async fn handle_existing_user(
         return Ok(inject_uuid_cookie(user.user_referral_redirect(), &user));
     }
 
-    let messages = Message::fetch_for(pool, &user).await?;
-    let messages_page = MessagesPageTemplate {
-        messages,
+    if user.admin {
+        let messages = sqlx::query_as!(
+            FullMessage,
+            // language=postgresql
+            "SELECT * FROM messages ORDER BY created_at DESC LIMIT 100"
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let page_template = AdminMessagesPageTemplate {
+            messages: serde_json::to_string(&messages)?,
+            user_id: user.id.to_string(),
+        };
+
+        return Ok(inject_uuid_cookie(MinifiedHtml(page_template), &user));
+    }
+
+    let page_template = UserMessagesPageTemplate {
+        messages: sqlx::query_as!(
+            StandardMessage,
+            // language=postgresql
+            "SELECT content, created_at FROM messages
+                               WHERE (published OR author = $1)
+                               ORDER BY created_at DESC LIMIT 40",
+            user.id
+        )
+        .fetch_all(pool)
+        .await?,
         user_id_encoded: user.encoded_id(),
-        admin: user.admin,
     };
 
-    Ok(inject_uuid_cookie(MinifiedHtml(messages_page), &user))
+    Ok(inject_uuid_cookie(MinifiedHtml(page_template), &user))
 }
 
 async fn handle_new_user(
@@ -174,7 +186,8 @@ pub async fn create_message(
             user.encryption_key().as_slice().into(),
             iv.as_slice().into(),
         );
-        let Ok(decrypted_content) = decryptor.decrypt_padded_vec_mut::<Pkcs7>(encrypted_content_bytes.as_slice())
+        let Ok(decrypted_content) =
+            decryptor.decrypt_padded_vec_mut::<Pkcs7>(encrypted_content_bytes.as_slice())
         else {
             return;
         };

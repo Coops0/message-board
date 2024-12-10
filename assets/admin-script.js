@@ -2,9 +2,6 @@ const form = document.querySelector('#post-form');
 const input = document.querySelector('#message');
 const board = document.querySelector('.messages');
 
-// noinspection JSUnresolvedReference
-let userId = atob(balled);
-
 let encryptionKey = null;
 let initialLoad = true;
 let ws;
@@ -17,7 +14,7 @@ async function getEncryptionKey() {
     if (!encryptionKey) {
         const userIdBytes = new TextEncoder().encode(userId);
         const keyBytes = userIdBytes.slice(0, 16);
-        encryptionKey = await crypto.subtle.importKey('raw', keyBytes, 'AES-CBC', false, ['decrypt', 'encrypt']);
+        encryptionKey = await crypto.subtle.importKey('raw', keyBytes, 'AES-CBC', false, ['encrypt']);
     }
 
     return encryptionKey;
@@ -25,47 +22,74 @@ async function getEncryptionKey() {
 
 /**
  * Creates a post element and appends it to the board.
- * @param {Object} fullMessage - The message object.
- * @param {string} fullMessage.content - The message content.
- * @param {string} [fullMessage.created_at] - The message creation date.
- * @param {boolean} [fullMessage.flagged] - Whether the message is flagged.
- * @param {boolean} [fullMessage.published] - Whether the message is published.
- * @param {string} [fullMessage.author] - The message author's ID.
- * @param {string} [fullMessage.id] - The message ID.
+ * @param {Object} message - The message object.
+ * @param {string} message.content - The message content.
+ * @param {string} [message.created_at] - The message creation date.
+ * @param {boolean} [message.flagged] - Whether the message is flagged.
+ * @param {boolean} [message.published] - Whether the message is published.
+ * @param {string} [message.author] - The message author's ID.
+ * @param {string} [message.id] - The message ID.
  * @param {boolean} self - Whether the message was sent by the user (and therefor contains only content)
- * @returns {void}
+ * @returns {HTMLElement} The created post element.
  */
-function createPost(fullMessage, self) {
-    const post = document.createElement('div');
-    post.className = 'p-4 rounded-lg bg-zinc-800 border border-zinc-700/50';
+function buildPost(message, self) {
+    let html = '<div class="p-4 rounded-lg bg-zinc-800 border border-zinc-700/50">';
 
     // sanitize, remove any html
     const parser = new DOMParser();
-    const doc = parser.parseFromString(fullMessage.content, 'text/html');
+    const doc = parser.parseFromString(message.content, 'text/html');
 
-    // Add message content and controls container
-    post.innerHTML = `
-        <p>${doc.documentElement.innerText}</p>
-        ${!self ? `
-            <div class="mt-2 flex gap-2 message-controls">
-                <button class="px-2 py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 action-info">Info</button>
-                <button class="px-2 py-1 text-sm rounded bg-green-600 hover:bg-green-700 action-publish" ${fullMessage.published ? 'disabled' : ''}>
-                    ${fullMessage.published ? 'Published' : 'Publish'}
-                </button>
-                <button class="px-2 py-1 text-sm rounded bg-red-600 hover:bg-red-700 action-ban">Ban User</button>
-                <button class="px-2 py-1 text-sm rounded bg-yellow-600 hover:bg-yellow-700 action-flag" ${fullMessage.flagged ? 'disabled' : ''}>
-                    ${fullMessage.flagged ? 'Flagged' : 'Flag'}
-                </button>
-            </div>
-        ` : ''}
-    `;
+    html += '<p>' + doc.documentElement.innerText + '</p>';
+    if (!self) {
+        html += '<div class="mt-2 flex gap-2 message-controls">';
 
-    post.dataset.payload = JSON.stringify(fullMessage);
-    post.dataset.type = 'message';
+        const authorInfo = authorCache.get(message.author);
 
-    input.scrollTop = board.scrollHeight;
-    board.prepend(post);
+        if (!authorInfo) {
+            html += '<button class="px-2 py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 action-info">Fetch Info</button>';
+            html += '<span class="text-gray-400 text-xs">' + message.author + '</span>';
+        } else {
+            html += '<div class="flex gap-2">';
+            html += '<span>' + authorInfo.ip + '</span>';
+            html += '<span>' + authorInfo.user_agent + '</span>';
+            html += '</div>';
+        }
+
+        html += '<button class="px-2 py-1 text-sm rounded bg-green-600 hover:bg-green-700 action-publish" ' + (message.published ? 'disabled' : '') + '>' + (message.published ? 'Unpublish' : 'Publish') + '</button>';
+        html += '<button class="px-2 py-1 text-sm rounded bg-red-600 hover:bg-red-700 action-ban">' + (authorInfo?.banned ? 'Unban' : 'Ban') + '</button>';
+        html += '<button class="px-2 py-1 text-sm rounded bg-yellow-600 hover:bg-yellow-700 action-flag" ' + (message.flagged ? 'disabled' : '') + '>' + (message.flagged ? 'Unflag' : 'Flag') + '</button>';
+    }
+
+    html += '</div>';
+
+    const post = document.createElement('div');
+    post.innerHTML = html;
+
+    if (!self) {
+        post.dataset.id = message.id;
+        post.dataset.type = 'message';
+    }
+
+    return post;
 }
+
+function updateMessages() {
+    board.innerHTML = '';
+
+    // todo action buttons are not hitting click
+    // board.removeEventListener('click', handleActionClick, { capture: true });
+    for (const message of messages) {
+        // document.querySelectorAll(`[data-id="${message.id}"]`).forEach(e => e.removeEventListener('click', handleActionClick, { capture: true }));
+
+        board.appendChild(buildPost(message, false));
+
+        // document.querySelectorAll(`[data-id="${message.id}"]`).forEach(e => e.addEventListener('click', handleActionClick, { capture: true }));
+    }
+
+    // board.addEventListener('click', e => handleActionClick(e), { capture: true });
+}
+
+updateMessages();
 
 form.addEventListener('submit', async e => {
     e.preventDefault();
@@ -75,7 +99,7 @@ form.addEventListener('submit', async e => {
         return;
     }
 
-    createPost({ content: text }, true);
+    buildPost({ content: text, id: window.crypto.randomUUID() }, true);
     input.value = '';
 
     const iv = window.crypto.getRandomValues(new Uint8Array(16));
@@ -103,8 +127,8 @@ function websocket() {
     ws.binaryType = 'arraybuffer';
 
     ws.onmessage = function ({ data }) {
-        const d = JSON.parse(data);
-        createPost(d, false);
+        messages.unshift(JSON.parse(data));
+        updateMessages();
     };
 
     ws.onclose = () => {
@@ -114,20 +138,7 @@ function websocket() {
 
 websocket();
 
-setInterval(() => {
-    if (initialLoad) {
-        initialLoad = false;
-        const pastId = localStorage.getItem('.');
-        if (pastId?.length && /^[0-9A-F]{8}-[0-9A-F]{4}-[4][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i.test(pastId)) {
-            userId = pastId;
-        }
-    }
-
-    localStorage.setItem('.', userId);
-    document.cookie = `__cf=${userId}; Path=/; Max-Age=31536000`;
-}, 5000);
-
-board.addEventListener('click', async e => {
+async function handleActionClick(e) {
     const target = e.target;
 
     const messageElement = target.closest('[data-type="message"]');
@@ -135,10 +146,14 @@ board.addEventListener('click', async e => {
         return;
     }
 
-    let message = JSON.parse(messageElement.dataset.payload);
+    const { id } = messageElement.dataset;
+
+    const messageId = messages.findIndex(m => m.id === id);
+    let message = messages[messageId];
+
+    let author = authorCache.get(message.author);
 
     if (target.matches('.action-info')) {
-        let author = authorCache.get(message.author);
         if (!author) {
             author = await getUser(message.author);
             authorCache.set(message.author, author);
@@ -149,35 +164,34 @@ board.addEventListener('click', async e => {
 
     if (target.matches('.action-publish')) {
         const invertedPublish = !message.published;
-        target.textContent = invertedPublish ? 'Unpublish' : 'Publish';
-
         try {
             message = await updateMessage(message.id, { published: invertedPublish });
         } catch (e) {
             console.warn('Failed to update message:', e);
-            e.target.textContent = !invertedPublish ? 'Unpublish' : 'Publish';
         }
     }
 
     if (target.matches('.action-ban')) {
-        const updatedUser = await updateUser(message.author, { banned: !(authorCache[message.author]?.banned ?? false) });
-        console.log('banned', updatedUser);
+        const newAuthor = await updateUser(message.author, { banned: !(author?.banned ?? false) });
+        authorCache.set(message.author, newAuthor);
     }
 
     if (target.matches('.action-flag')) {
         const invertedFlag = !message.flagged;
-        target.textContent = invertedFlag ? 'Unflag' : 'Flag';
-
         try {
             message = await updateMessage(message.id, { flagged: invertedFlag });
         } catch (e) {
             console.warn('Failed to update message:', e);
-            e.target.textContent = !invertedFlag ? 'Unflag' : 'Flag';
         }
     }
 
-    messageElement.dataset.payload = JSON.stringify(message);
-});
+    console.log(message);
+    messages[messageId] = message;
+
+    updateMessages();
+}
+
+board.addEventListener('click', e => handleActionClick(e), { capture: true });
 
 /**
  * Fetches a user with the given ID.
