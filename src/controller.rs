@@ -18,19 +18,13 @@ use cbc::cipher::{BlockDecryptMut, KeyIvInit};
 use cbc::Decryptor;
 use sqlx::PgPool;
 use std::net::IpAddr;
+use axum::response::Html;
 use tokio::task;
 #[derive(Template)]
 #[template(path = "user-messages.askama.html")]
 pub struct UserMessagesPageTemplate {
     messages: Vec<StandardMessage>,
     user_id_encoded: String,
-}
-
-#[derive(Template)]
-#[template(path = "admin-messages.askama.html")]
-pub struct AdminMessagesPageTemplate {
-    messages: String,
-    user_id: String,
 }
 
 pub async fn user_referred_index(
@@ -112,12 +106,13 @@ async fn handle_existing_user(
         .fetch_all(pool)
         .await?;
 
-        let page_template = AdminMessagesPageTemplate {
-            messages: serde_json::to_string(&messages)?,
-            user_id: user.id.to_string(),
-        };
+        let admin_page = include_str!("../templates/admin-messages.vue")
+            .replace("'{{ MESSAGES }}'", &serde_json::to_string(&messages)?)
+            .replace("'{{ USER_ID }}'", &user.id.to_string())
+            .replace("'{{ VUE_GLOBAL_SCRIPT }}'", include_str!("../assets/vue.global.prod.js"))
+            .replace("'{{ TAILWIND_STYLES }}'", include_str!("../assets/ts.css"));
 
-        return Ok(inject_uuid_cookie(MinifiedHtml(page_template), &user));
+        return Ok(inject_uuid_cookie(Html(admin_page), &user));
     }
 
     let page_template = UserMessagesPageTemplate {

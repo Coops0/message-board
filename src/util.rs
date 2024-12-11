@@ -100,7 +100,7 @@ where
                 .headers
                 .get(USER_AGENT)
                 .and_then(|ua| ua.to_str().ok())
-                .map(str::to_string),
+                .map(ammonia::clean),
         ))
     }
 }
