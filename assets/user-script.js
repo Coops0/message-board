@@ -22,20 +22,38 @@ async function getEncryptionKey() {
 function createPost({ content, createdAt, author }) {
     let color = authorColors.get(author);
     if (!color) {
-        color = `hsl(${Math.floor(Math.random() * 360)}, 100%, 50%)`;
+        const hue = Math.floor(Math.random() * 360);
+        color = `hsl(${hue}, 70%, 80%)`;
         authorColors.set(author, color);
     }
 
     const post = document.createElement('div');
-    post.className = 'p-4 rounded-lg bg-zinc-800 border border-zinc-700/50';
+    post.className = 'group transition-all duration-300 opacity-0 transform translate-y-4';
 
-    // sanitize, remove any html
+    const messageContainer = document.createElement('div');
+    messageContainer.className = 'p-5 rounded-lg bg-slate-800/50 backdrop-blur border border-slate-700/30 hover:border-slate-600/50 transition-all duration-150 shadow-lg hover:shadow-slate-900/50';
+
     const parser = new DOMParser();
     const doc = parser.parseFromString(content, 'text/html');
 
-    post.innerHTML = `<p style="color: ${color}" >${doc.documentElement.innerText}</p>`;
+    const messageContent = document.createElement('p');
+    messageContent.className = 'leading-relaxed';
+    messageContent.style.color = color;
+    messageContent.textContent = doc.documentElement.innerText;
+
+    const hoverLine = document.createElement('div');
+    hoverLine.className = 'h-px w-0 group-hover:w-full bg-gradient-to-r from-transparent via-slate-500/50 to-transparent transition-all duration-500 mt-1';
+
+    messageContainer.appendChild(messageContent);
+    post.appendChild(messageContainer);
+    post.appendChild(hoverLine);
 
     board.appendChild(post);
+
+    requestAnimationFrame(() => {
+        post.classList.remove('opacity-0', 'translate-y-4');
+    });
+
     post.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -161,7 +179,8 @@ setTimeout(() => {
         const author = message.dataset['b'];
         let color = authorColors.get(author);
         if (!color) {
-            color = `hsl(${Math.floor(Math.random() * 360)}, 100%, 50%)`;
+            const hue = Math.floor(Math.random() * 360);
+            color = `hsl(${hue}, 70%, 80%)`;
             authorColors.set(author, color);
         }
 
