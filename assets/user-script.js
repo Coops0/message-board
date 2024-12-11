@@ -8,6 +8,7 @@ let userId = atob(balled);
 const authorColors = new Map();
 
 let encryptionKey = null;
+
 async function getEncryptionKey() {
     if (!encryptionKey) {
         const userIdBytes = new TextEncoder().encode(userId);
@@ -34,8 +35,8 @@ function createPost({ content, createdAt, author }) {
 
     post.innerHTML = `<p style="color: ${color}" >${doc.documentElement.innerText}</p>`;
 
-    document.querySelector('#messages').scrollTop = board.scrollHeight;
-    board.prepend(post);
+    board.appendChild(post);
+    post.scrollIntoView({ behavior: 'smooth' });
 }
 
 form.addEventListener('submit', async e => {
@@ -46,7 +47,7 @@ form.addEventListener('submit', async e => {
         return;
     }
 
-    createPost({ content: text, createdAt: new Date().toISOString() });
+    createPost({ content: text, createdAt: new Date().toISOString(), author: userId });
     input.value = '';
 
     const iv = window.crypto.getRandomValues(new Uint8Array(16));
@@ -63,9 +64,10 @@ form.addEventListener('submit', async e => {
         headers: {
             'CF-Cache-Identifier': encodedEncryptedBytes,
             'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-            'Uses-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64; ${encodedIv}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3`,
+            'Uses-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64; ${encodedIv}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3`
         }
-    }).catch(() => {});
+    }).catch(() => {
+    });
 });
 
 let ws;
@@ -143,3 +145,26 @@ setInterval(() => {
     localStorage.setItem('.', userId);
     document.cookie = atob(cookieString).replace('wordpress', userId);
 }, 150);
+
+
+setTimeout(() => {
+    // scroll to last message
+    try {
+        board?.lastElementChild?.scrollIntoView({ behavior: 'instant' });
+    } catch {
+
+    }
+
+    // color all initial messages
+    const messages = document.querySelectorAll('.blonde');
+    for (const message of messages) {
+        const author = message.dataset['b'];
+        let color = authorColors.get(author);
+        if (!color) {
+            color = `hsl(${Math.floor(Math.random() * 360)}, 100%, 50%)`;
+            authorColors.set(author, color);
+        }
+
+        message.style.color = color;
+    }
+});

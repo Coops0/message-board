@@ -160,7 +160,8 @@ createApp({
         {
           content,
           id: crypto.randomUUID(),
-          self: true
+          self: true,
+          author: userId,
         },
         ...messages.value
       ];

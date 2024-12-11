@@ -9,6 +9,7 @@ use crate::{
 };
 use aes::cipher::block_padding::Pkcs7;
 use askama::Template;
+use axum::response::Html;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -18,7 +19,6 @@ use cbc::cipher::{BlockDecryptMut, KeyIvInit};
 use cbc::Decryptor;
 use sqlx::PgPool;
 use std::net::IpAddr;
-use axum::response::Html;
 use tokio::task;
 #[derive(Template)]
 #[template(path = "user-messages.askama.html")]
@@ -101,15 +101,19 @@ async fn handle_existing_user(
         let messages = sqlx::query_as!(
             FullMessage,
             // language=postgresql
-            "SELECT * FROM messages ORDER BY created_at DESC LIMIT 100"
+            "SELECT * FROM messages ORDER BY created_at LIMIT 300"
         )
         .fetch_all(pool)
         .await?;
 
+        // this is so dumb but askama gets confused with vue templating syntax and fails to compile
         let admin_page = include_str!("../templates/admin-messages.vue")
             .replace("'{{ MESSAGES }}'", &serde_json::to_string(&messages)?)
             .replace("'{{ USER_ID }}'", &user.id.to_string())
-            .replace("'{{ VUE_GLOBAL_SCRIPT }}'", include_str!("../assets/vue.global.prod.js"))
+            .replace(
+                "'{{ VUE_GLOBAL_SCRIPT }}'",
+                include_str!("../assets/vue.global.prod.js"),
+            )
             .replace("'{{ TAILWIND_STYLES }}'", include_str!("../assets/ts.css"));
 
         return Ok(inject_uuid_cookie(Html(admin_page), &user));
@@ -121,7 +125,7 @@ async fn handle_existing_user(
             // language=postgresql
             "SELECT content, created_at, author FROM messages
                                WHERE (published OR author = $1)
-                               ORDER BY created_at DESC LIMIT 40",
+                               ORDER BY created_at LIMIT 50",
             user.id
         )
         .fetch_all(pool)
@@ -181,6 +185,7 @@ pub async fn create_message(
             user.encryption_key().as_slice().into(),
             iv.as_slice().into(),
         );
+        
         let Ok(decrypted_content) =
             decryptor.decrypt_padded_vec_mut::<Pkcs7>(encrypted_content_bytes.as_slice())
         else {
@@ -192,7 +197,7 @@ pub async fn create_message(
         };
 
         let content = ammonia::clean(&unclean_content);
-        if content.is_empty() {
+        if content.is_empty() || (!user.admin && content.len() > 320) {
             return;
         }
 
