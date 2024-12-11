@@ -19,7 +19,7 @@ async function getEncryptionKey() {
     return encryptionKey;
 }
 
-function createPost({ content, createdAt, author }) {
+function createPost({ content, createdAt, author, id }) {
     let color = authorColors.get(author);
     if (!color) {
         const hue = Math.floor(Math.random() * 360);
@@ -28,6 +28,10 @@ function createPost({ content, createdAt, author }) {
     }
 
     const post = document.createElement('div');
+    if (id) {
+        post.dataset['p'] = id;
+    }
+
     post.className = 'group transition-all duration-300 opacity-0 transform translate-y-4';
 
     const messageContainer = document.createElement('div');
@@ -102,6 +106,13 @@ function websocket() {
 
 websocket();
 
+function findAndDeleteMessage(id) {
+    const post = board.querySelector(`[data-p="${id}"]`);
+    if (post) {
+        post.remove();
+    }
+}
+
 class MessagesDecoder {
     view;
     offset;
@@ -128,11 +139,26 @@ class MessagesDecoder {
         const iv = new Uint8Array(this.view.buffer, this.offset, 16);
         this.offset += 16;
 
+        const messageType = this.view.getUint8(this.offset);
+        this.offset += 1;
+
+        if (messageType === 1) {
+            const id = await this.readString(iv);
+            findAndDeleteMessage(id);
+            return null;
+        }
+
+        if (messageType !== 0) {
+            console.warn('unknown message type', messageType);
+            return null;
+        }
+
+        const id = await this.readString(iv);
         const content = await this.readString(iv);
         const createdAt = await this.readString(iv);
         const author = await this.readString(iv);
 
-        return { content, createdAt, author };
+        return { content, createdAt, author, id };
     }
 }
 
@@ -141,7 +167,9 @@ async function onMessage({ data }) {
     const view = new DataView(data);
     const decoder = new MessagesDecoder(view);
     const standardMessage = await decoder.readMessage();
-    createPost(standardMessage);
+    if (standardMessage) {
+        createPost(standardMessage);
+    }
 }
 
 let initialLoad = true;

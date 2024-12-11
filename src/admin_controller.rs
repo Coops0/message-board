@@ -1,6 +1,7 @@
 use crate::messages::FullMessage;
 use crate::user::User;
 use crate::util::WR;
+use crate::ws::WebsocketActorMessage;
 use crate::{fallback, AppState};
 use axum::extract::{OriginalUri, Path, Request, State};
 use axum::middleware::{from_fn_with_state, Next};
@@ -90,11 +91,11 @@ struct PatchMessagePayload {
 }
 
 async fn update_message(
-    State(AppState { pool, .. }): State<AppState>,
+    State(AppState { pool, tx }): State<AppState>,
     Path(id): Path<Uuid>,
     Json(payload): Json<PatchMessagePayload>,
 ) -> WR<Json<FullMessage>> {
-    sqlx::query_as!(
+    let updated_message = sqlx::query_as!(
         FullMessage,
         // language=postgresql
         "UPDATE messages
@@ -108,7 +109,14 @@ async fn update_message(
         payload.published
     )
     .fetch_one(&pool)
-    .await
-    .map(Json)
-    .map_err(Into::into)
+    .await?;
+
+    let _ = tx
+        .send(WebsocketActorMessage::Message {
+            message: updated_message.clone(),
+            is_update: true,
+        })
+        .await;
+
+    Ok(Json(updated_message))
 }

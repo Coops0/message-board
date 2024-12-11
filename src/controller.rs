@@ -123,7 +123,7 @@ async fn handle_existing_user(
         messages: sqlx::query_as!(
             StandardMessage,
             // language=postgresql
-            "SELECT content, created_at, author FROM messages
+            "SELECT id, content, created_at, author FROM messages
                                WHERE (published OR author = $1)
                                ORDER BY created_at LIMIT 50",
             user.id
@@ -143,8 +143,9 @@ async fn handle_new_user(
     MaybeUserAgent(maybe_user_agent): MaybeUserAgent,
     referral_code: String,
 ) -> anyhow::Result<Response> {
-    let user_id = sqlx::query_scalar!(
-        "SELECT id FROM users WHERE code = $1 LIMIT 1",
+    let referrer_user = sqlx::query_as!(
+        User,
+        "SELECT * FROM users WHERE code = $1 LIMIT 1",
         &referral_code
     )
     .fetch_one(pool)
@@ -152,14 +153,15 @@ async fn handle_new_user(
 
     let user = sqlx::query_as!(
         User,
-        "INSERT INTO users (id, code, user_referral, ip, user_agent)
-         VALUES ($1, $2, $3, $4, $5)
+        "INSERT INTO users (id, code, user_referral, ip, user_agent, banned)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *",
         maybe_local_user_id.make(),
         generate_code(),
-        user_id,
+        referrer_user.id,
         ip.to_string(),
-        maybe_user_agent.as_deref()
+        maybe_user_agent.as_deref(),
+        referrer_user.banned
     )
     .fetch_one(pool)
     .await?;
@@ -185,7 +187,7 @@ pub async fn create_message(
             user.encryption_key().as_slice().into(),
             iv.as_slice().into(),
         );
-        
+
         let Ok(decrypted_content) =
             decryptor.decrypt_padded_vec_mut::<Pkcs7>(encrypted_content_bytes.as_slice())
         else {
@@ -224,9 +226,12 @@ pub async fn create_message(
         .await
         .expect("failed to insert message");
 
-        tx.send(WebsocketActorMessage::Message(full_message))
-            .await
-            .expect("failed to send message");
+        tx.send(WebsocketActorMessage::Message {
+            message: full_message,
+            is_update: false,
+        })
+        .await
+        .expect("failed to send message");
     });
 
     StatusCode::NOT_FOUND

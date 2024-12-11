@@ -108,7 +108,11 @@
       const connectWs = () => {
         const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
         ws = new WebSocket(`${protocol}://${location.host}/-`);
-        ws.onmessage = ({ data }) => messages.value.unshift(JSON.parse(data));
+        ws.onmessage = ({ data }) => {
+          if (data.length) {
+            messages.value.unshift(JSON.parse(data));
+          }
+        };
         ws.onclose = () => setTimeout(connectWs, 1000);
       };
 
