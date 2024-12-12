@@ -54,12 +54,12 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
                     .iter_mut()
                     .filter(|(_, owner)| !owner.id.eq(&message.author))
                     .filter_map(|(socket, user)| -> Option<SendMessageFuture> {
-                        let mut message_enc = MessageEncoder(user.encryption_key());
+                        let mut message_enc = MessageEncoder::new(user.encryption_key());
 
                         let ws_msg = message
                             .encode_message_for(&mut message_enc, user, is_update)
                             .ok()??;
-                        
+
                         let fut =
                             async move { socket.send(ws_msg).await.map_err(|e| (e, user.id)) };
 
@@ -81,60 +81,63 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
     }
 }
 
-struct MessageEncoder(Vec<u8>);
-
-impl MessageEncoder {
-    fn prepare_encryption(&self) -> ([u8; 16], Encryptor<aes::Aes128>) {
-        let iv = rand::random::<[u8; 16]>();
-        let encryptor = Encryptor::<aes::Aes128>::new((&self.0[..]).into(), iv.as_ref().into());
-
-        (iv, encryptor)
-    }
+struct MessageEncoder {
+    encryptor: Encryptor<aes::Aes128>,
+    iv: [u8; 16],
 }
 
-#[allow(clippy::cast_possible_truncation)]
-fn encode_and_encrypt_str(encryptor: Encryptor<aes::Aes128>, content: &str, dst: &mut BytesMut) {
-    let ct = encryptor.encrypt_padded_vec_mut::<Pkcs7>(content.as_bytes());
+impl MessageEncoder {
+    fn new<K: Into<Vec<u8>>>(key: K) -> Self {
+        let key = key.into();
 
-    dst.put_u32(ct.len() as u32);
-    dst.extend_from_slice(&ct);
+        let iv = rand::random::<[u8; 16]>();
+        let encryptor = Encryptor::<aes::Aes128>::new((&key[..]).into(), iv.as_ref().into());
+
+        Self { encryptor, iv }
+    }
+
+    fn init(&self, dst: &mut BytesMut) {
+        dst.put(&self.iv[..]);
+    }
+
+    #[allow(clippy::cast_possible_truncation, clippy::needless_pass_by_value)]
+    fn put_encrypted<S: ToString>(&self, content: S, dst: &mut BytesMut) {
+        let ct = self
+            .encryptor
+            .clone()
+            .encrypt_padded_vec_mut::<Pkcs7>(content.to_string().as_bytes());
+
+        dst.put_u32(ct.len() as u32);
+        dst.extend_from_slice(&ct);
+    }
 }
 
 impl Encoder<&FullMessage> for MessageEncoder {
     type Error = io::Error;
 
     fn encode(&mut self, item: &FullMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        let (iv, encryptor) = self.prepare_encryption();
-        dst.put(&iv[..]);
+        self.init(dst);
 
         dst.put_u8(0);
-
-        // todo clean up this shit
-        encode_and_encrypt_str(Encryptor::clone(&encryptor), &item.id.to_string(), dst);
-        encode_and_encrypt_str(Encryptor::clone(&encryptor), &item.content, dst);
-        encode_and_encrypt_str(
-            Encryptor::clone(&encryptor),
-            &item.created_at.to_string(),
-            dst,
-        );
-        encode_and_encrypt_str(encryptor, &item.author.to_string(), dst);
+        
+        self.put_encrypted(item.id, dst);
+        self.put_encrypted(&item.content, dst);
+        self.put_encrypted(item.created_at, dst);
+        self.put_encrypted(item.author, dst);
 
         Ok(())
     }
 }
 
 struct DeleteMessage(Uuid);
-
 impl Encoder<&DeleteMessage> for MessageEncoder {
     type Error = io::Error;
 
     fn encode(&mut self, item: &DeleteMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        let (iv, encryptor) = self.prepare_encryption();
-
-        dst.put(&iv[..]);
+        self.init(dst);
 
         dst.put_u8(1);
-        encode_and_encrypt_str(Encryptor::clone(&encryptor), &item.0.to_string(), dst);
+        self.put_encrypted(item.0, dst);
 
         Ok(())
     }
