@@ -58,7 +58,8 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
 
                         let ws_msg = message
                             .encode_message_for(&mut message_enc, user, is_update)
-                            .ok()?;
+                            .ok()??;
+                        
                         let fut =
                             async move { socket.send(ws_msg).await.map_err(|e| (e, user.id)) };
 
@@ -145,12 +146,12 @@ impl FullMessage {
         encoder: &mut MessageEncoder,
         user: &User,
         is_update: bool,
-    ) -> anyhow::Result<Message> {
+    ) -> anyhow::Result<Option<Message>> {
         if user.admin {
             return if is_update {
-                Ok(Message::Text(String::new()))
+                Ok(None)
             } else {
-                Ok(Message::Text(serde_json::to_string(&self)?))
+                Ok(Some(Message::Text(serde_json::to_string(&self)?)))
             };
         }
 
@@ -162,6 +163,6 @@ impl FullMessage {
             encoder.encode(self, &mut body)?;
         }
 
-        Ok(Message::Binary(body.freeze().to_vec()))
+        Ok(Some(Message::Binary(body.freeze().to_vec())))
     }
 }
