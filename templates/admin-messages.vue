@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Message Moderation Interface</title>
+  <title>walt whitman msgboard</title>
   <style>'{{ TAILWIND_STYLES }}'</style>
 </head>
 <body>
@@ -13,12 +13,14 @@
       <header class="bg-zinc-800/90 backdrop-blur-lg border-b border-zinc-700/50 px-6 py-4 sticky top-0 z-10">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-4">
-            <h1 class="text-lg font-semibold">Moderation Dashboard</h1>
+            <h1 class="text-lg font-semibold">MSGBOARD</h1>
             <div class="h-4 w-px bg-zinc-700"></div>
             <div class="flex gap-4 text-sm">
               <span class="text-zinc-400">Messages: {{ messages.length }}</span>
               <span class="text-red-400">Flagged: {{ messages.filter(m => m.flagged).length }}</span>
-              <span class="text-yellow-400">Pending: {{ messages.filter(m => !m.published && !m.self).length }}</span>
+              <span class="text-yellow-400">Unpublished: {{
+                  messages.filter(m => !m.published && !m.self).length
+                }}</span>
             </div>
           </div>
         </div>
@@ -26,8 +28,12 @@
 
       <div class="flex-1 overflow-y-auto p-6">
         <div class="space-y-4">
-          <div v-for="(message, index) in messages" :key="message.id"
-               class="group relative">
+          <div
+              v-for="(message, index) in messages"
+              :key="message.id"
+              class="group relative"
+              ref="messages-ref"
+          >
             <div :class="[
               'p-4 rounded-lg border transition-all',
               'bg-zinc-800/80 hover:bg-zinc-800',
@@ -43,8 +49,10 @@
                   <div v-if="!message.self && authorInfo[message.author]" class="mt-3 space-y-2">
                     <div class="flex items-center gap-3 text-sm">
                       <div class="flex items-center gap-2 px-3 py-1.5 rounded-md bg-zinc-700/50">
-                        <svg class="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>
+                        <svg class="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2">
+                          <path
+                              d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>
                         </svg>
                         <span class="text-zinc-300">{{ authorInfo[message.author].ip }}</span>
                       </div>
@@ -52,10 +60,14 @@
                       <div v-if="authorInfo[message.author].user_agent"
                            class="flex items-center gap-2 px-3 py-1.5 rounded-md bg-zinc-700/50"
                            :title="authorInfo[message.author].user_agent">
-                        <svg class="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M9.17 6H3a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-6.17M9.17 6a2 2 0 0 1 1.66-.9h2.34a2 2 0 0 1 1.66.9M9.17 6h5.66"/>
+                        <svg class="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2">
+                          <path
+                              d="M9.17 6H3a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-6.17M9.17 6a2 2 0 0 1 1.66-.9h2.34a2 2 0 0 1 1.66.9M9.17 6h5.66"/>
                         </svg>
-                        <span class="text-zinc-300">{{ truncateUserAgent(authorInfo[message.author].user_agent) }}</span>
+                        <span class="text-zinc-300">{{
+                            truncateUserAgent(authorInfo[message.author].user_agent)
+                          }}</span>
                       </div>
                     </div>
                   </div>
@@ -65,10 +77,12 @@
                   <div v-if="message.flagged" class="px-2 py-1 text-xs font-medium bg-red-500/20 text-red-300 rounded">
                     Flagged
                   </div>
-                  <div v-if="!message.published && !message.self" class="px-2 py-1 text-xs font-medium bg-yellow-500/20 text-yellow-300 rounded">
-                    Pending
+                  <div v-if="!message.published && !message.self"
+                       class="px-2 py-1 text-xs font-medium bg-yellow-500/20 text-yellow-300 rounded">
+                    Unpublished
                   </div>
-                  <div v-if="authorInfo[message.author]?.banned" class="px-2 py-1 text-xs font-medium bg-purple-500/20 text-purple-300 rounded">
+                  <div v-if="authorInfo[message.author]?.banned"
+                       class="px-2 py-1 text-xs font-medium bg-purple-500/20 text-purple-300 rounded">
                     Banned User
                   </div>
                 </div>
@@ -97,9 +111,9 @@
                 </button>
 
                 <button
-                       v-if="message.flagged"
-                        @click="() => toggleFlag(index)"
-                        class="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-yellow-600/30 hover:bg-yellow-600/50">
+                    v-if="message.flagged"
+                    @click="() => toggleFlag(index)"
+                    class="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-yellow-600/30 hover:bg-yellow-600/50">
                   Unflag
                 </button>
               </div>
@@ -125,7 +139,7 @@
 
 <script>'{{ VUE_GLOBAL_SCRIPT }}';</script>
 <script>
-  const { createApp, ref, onMounted } = Vue;
+  const { createApp, ref, onMounted, useTemplateRef } = Vue;
 
   createApp({
     setup() {
@@ -135,19 +149,31 @@
       const colorCache = ref({});
       const userId = `'{{ USER_ID }}'`;
 
+      const messagesRef = useTemplateRef('messages-ref');
+
       let ws = null;
       let cachedKey = null;
 
+     const scroll = (behavior = 'smooth') => {
+        const m = messagesRef.value;
+        if (m && m.length) {
+          m[m.length - 1].scrollIntoView({ behavior });
+        }
+      };
+
       const truncateUserAgent = (ua) => {
-        if (!ua) return 'Unknown Client';
-        return ua.length > 30 ? ua.substring(0, 27) + '...' : ua;
+        if (ua) {
+          return ua.length > 30 ? ua.substring(0, 27) + '...' : ua;
+        } else {
+          return '???';
+        }
       };
 
       const getEncryptionKey = async () => {
         if (!cachedKey) {
           const idBytes = new TextEncoder().encode(userId);
           cachedKey = await crypto.subtle.importKey(
-              'raw', idBytes.slice(0, 16), 'AES-CBC', false, ['decrypt']
+              'raw', idBytes.slice(0, 16), 'AES-CBC', false, ['encrypt']
           );
         }
         return cachedKey;
@@ -167,6 +193,8 @@
           if (data.length) {
             messages.value.unshift(JSON.parse(data));
           }
+
+          requestAnimationFrame(() => scroll());
         };
         ws.onclose = () => setTimeout(connectWs, 1000);
       };
@@ -221,12 +249,14 @@
           }
         ];
 
+        requestAnimationFrame(() => scroll());
+
         messageInput.value = '';
 
         const iv = window.crypto.getRandomValues(new Uint8Array(16));
         const encodedIv = btoa(String.fromCharCode(...iv));
 
-        const textBytes = new TextEncoder().encode(messageInput.value);
+        const textBytes = new TextEncoder().encode(content);
         const encrypted = await crypto.subtle.encrypt(
             { name: 'AES-CBC', iv }, await getEncryptionKey(), textBytes
         );
@@ -239,10 +269,19 @@
             'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
             'Uses-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64; ${encodedIv}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3`
           }
-        }).catch(() => {});
+        }).catch(() => {
+        });
       };
 
-      onMounted(connectWs);
+      onMounted(() => {
+        try {
+          connectWs();
+        } catch {
+
+        }
+
+        scroll('instant');
+      });
 
       return {
         messages,

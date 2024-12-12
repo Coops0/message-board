@@ -56,9 +56,8 @@ function createPost({ content, createdAt, author, id }) {
 
     requestAnimationFrame(() => {
         post.classList.remove('opacity-0', 'translate-y-4');
+        post.scrollIntoView({ behavior: 'smooth' });
     });
-
-    post.scrollIntoView({ behavior: 'smooth' });
 }
 
 form.addEventListener('submit', async e => {
@@ -195,11 +194,7 @@ setInterval(() => {
 
 setTimeout(() => {
     // scroll to last message
-    try {
-        board?.lastElementChild?.scrollIntoView({ behavior: 'instant' });
-    } catch {
-
-    }
+    setTimeout(() => board.lastElementChild.scrollIntoView({ behavior: 'instant' }), 150);
 
     // color all initial messages
     const messages = document.querySelectorAll('.blonde');

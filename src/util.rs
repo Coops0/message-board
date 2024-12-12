@@ -26,7 +26,7 @@ pub struct WebErrorExtensionMarker;
 
 impl IntoResponse for WE {
     fn into_response(self) -> Response {
-        warn!("error!! -> {:?}", self.0);
+        warn!("error on request -> {:?}", self.0);
         // this will never be shown to the user
         let mut res = ().into_response();
         res.extensions_mut().insert(WebErrorExtensionMarker);
@@ -189,15 +189,15 @@ impl ExistingMessages {
 
     pub fn should_block_message(&self, content: &str) -> bool {
         if self.total_count > 400 {
-            return false;
+            return true;
         }
 
         if let Some(last_content) = &self.last_message_content {
             if last_content == content {
-                return false;
+                return true;
             }
         }
 
-        true
+        false
     }
 }

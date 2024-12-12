@@ -20,6 +20,7 @@ use cbc::Decryptor;
 use sqlx::PgPool;
 use std::net::IpAddr;
 use tokio::task;
+
 #[derive(Template)]
 #[template(path = "user-messages.askama.html")]
 pub struct UserMessagesPageTemplate {
@@ -203,15 +204,20 @@ pub async fn create_message(
             return;
         }
 
-        let Ok(existing) = ExistingMessages::fetch_for(&pool, &user).await else {
-            return;
+        let flagged = if user.admin {
+            false
+        } else {
+            let Ok(existing) = ExistingMessages::fetch_for(&pool, &user).await else {
+                return;
+            };
+
+            if existing.should_block_message(&content) {
+                return;
+            }
+
+            existing.should_flag_message(&content)
         };
 
-        if !existing.should_block_message(&content) {
-            return;
-        }
-
-        let flagged = existing.should_flag_message(&content);
         let full_message = sqlx::query_as!(
             FullMessage,
             // language=postgresql
