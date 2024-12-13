@@ -71,8 +71,7 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
                     .await
                     .into_iter()
                     .filter_map(Result::err)
-                    .for_each(|(e, id)| {
-                        warn!("error sending ws message: {e:?}");
+                    .for_each(|(_e, id)| {
                         // remove any dead sockets
                         sockets.retain(|(_, user)| !user.id.eq(&id));
                     });

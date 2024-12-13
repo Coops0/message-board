@@ -1,5 +1,6 @@
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use rand::distributions::{Alphanumeric, DistString};
 use std::fs::{remove_file, File};
 use std::io::{Read, Write};
 use std::process::Command;
@@ -33,30 +34,32 @@ fn main() {
         ])
         .status()
         .unwrap();
-    
+
     assert!(obf_status.success());
-    
+
     remove_file("assets/user-script.obf.js").unwrap();
 }
 
-const STRING_DELIMITERS: &[char] = &['"', '\'', '`'];
-const SKIP_PATTERNS: &[&str] = &["atob(", "btoa(", "http://", "https://", ".js", ".css"];
+// this is actually disgusting
+
+const STRING_DELIMITERS: &str = "\"'`";
+const SKIP_PATTERNS: [&str; 6] = ["atob(", "btoa(", "http://", "https://", ".js", ".css"];
+
+const ROTATE_KEY: u8 = 13;
+const XOR_KEY: u8 = 0x7B;
 
 struct StringToken {
     content: String,
-    start: usize,
-    end: usize,
+    span: std::ops::Range<usize>,
 }
 
 impl StringToken {
+    #[inline]
     fn should_skip(&self) -> bool {
-        if self.content.len() < 3 {
-            return true;
-        }
-
-        SKIP_PATTERNS
-            .iter()
-            .any(|&pattern| self.content.contains(pattern))
+        self.content.len() < 3
+            || SKIP_PATTERNS
+                .iter()
+                .any(|&pattern| self.content.contains(pattern))
     }
 }
 
@@ -66,56 +69,95 @@ struct StringEncoder {
     position: usize,
     output: String,
     offset: usize,
+
+    decoder_function_name: String,
+    decoder_function: String,
 }
 
 impl StringEncoder {
     fn new(source: String) -> Self {
-        let chars: Vec<char> = source.chars().collect();
+        let chars = source.chars().collect();
+
+        let decoder_function_name = format!(
+            "_{}",
+            Alphanumeric.sample_string(&mut rand::thread_rng(), 8)
+        );
+        
+        let decoder_function = format!(
+            "function {decoder_function_name}(s){{return atob(s).split('').map(c=>String.fromCharCode((c.charCodeAt(0)^{XOR_KEY}))).map(c=>String.fromCharCode((c.charCodeAt(0)+256-{ROTATE_KEY})%256)).join('')}}"
+        );
+
         Self {
-            source: source.clone(),
+            output: source.clone(),
+            source,
             chars,
             position: 0,
-            output: source,
             offset: 0,
+
+            decoder_function_name,
+            decoder_function,
         }
     }
 
-    fn process_file(input: &mut File, output: &mut File) -> std::io::Result<()> {
+    pub fn process_file(input: &mut File, output: &mut File) -> std::io::Result<()> {
         let mut source = String::new();
         input.read_to_string(&mut source)?;
 
-        let mut obfuscator = Self::new(source);
-        obfuscator.process_strings();
+        let mut encoder = Self::new(source);
+        encoder.process_strings();
 
-        output.write_all(obfuscator.output.as_bytes())?;
-        output.flush()?;
-        Ok(())
+        encoder
+            .output
+            .insert_str(encoder.output.len(), &encoder.decoder_function);
+
+        output.write_all(encoder.output.as_bytes())
     }
 
     fn process_strings(&mut self) {
-        while self.position < self.chars.len() {
-            if let Some(token) = self.next() {
-                if !token.should_skip() {
-                    self.obfuscate_token(&token);
-                }
+        while let Some(token) = self.next() {
+            if !token.should_skip() {
+                self.obfuscate_token(&token);
             }
-
-            self.position += 1;
         }
     }
 
     fn obfuscate_token(&mut self, token: &StringToken) {
-        let content = &token.content[1..token.content.len() - 1];
-        let encoded = BASE64_STANDARD.encode(content);
+        let replacement = {
+            let content = &token.content[1..token.content.len() - 1];
 
-        let replacement_code = format!("atob(\"{encoded}\")");
+            let xored = content
+                .as_bytes()
+                .iter()
+                .map(|&b| b.wrapping_add(ROTATE_KEY))
+                .map(|b| b ^ XOR_KEY)
+                .collect::<Vec<_>>();
 
-        self.output.replace_range(
-            token.start + self.offset..=token.end + self.offset,
-            &replacement_code,
-        );
+            let encoded_byte_delimited = BASE64_STANDARD
+                .encode(xored)
+                .bytes()
+                .map(|b| b.to_string())
+                .collect::<Vec<String>>()
+                .join(",");
 
-        self.offset += replacement_code.len() - (token.end - token.start + 1);
+            format!(
+                "{}(String.fromCharCode({encoded_byte_delimited}))",
+                self.decoder_function_name
+            )
+        };
+
+        {
+            let adjusted_start = token.span.start + self.offset;
+            let adjusted_end = token.span.end + self.offset;
+            self.output
+                .replace_range(adjusted_start..=adjusted_end, &replacement);
+        }
+
+        let old_len = token.span.end - token.span.start + 1;
+        if replacement.len() > old_len {
+            self.offset += replacement.len() - old_len;
+        } else {
+            self.offset -= old_len - replacement.len();
+        }
     }
 }
 
@@ -123,37 +165,42 @@ impl Iterator for StringEncoder {
     type Item = StringToken;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let current_char = self.chars[self.position];
-
-        if !STRING_DELIMITERS.contains(&current_char) {
-            return None;
-        }
-
-        let start = self.position;
-        let mut escaped = false;
-        self.position += 1;
-
         while self.position < self.chars.len() {
-            let c = self.chars[self.position];
+            let current_char = self.chars[self.position];
 
-            if c == '\\' && !escaped {
-                escaped = true;
+            if !STRING_DELIMITERS.contains(current_char) {
                 self.position += 1;
                 continue;
             }
 
-            if c == current_char && !escaped {
-                return Some(StringToken {
-                    content: self.source[start..=self.position].to_string(),
-                    start,
-                    end: self.position,
-                });
+            let start = self.position;
+            let mut escaped = false;
+            
+            self.position += 1;
+
+            while self.position < self.chars.len() {
+                match (self.chars[self.position], escaped) {
+                    ('\\', false) => {
+                        escaped = true;
+                        self.position += 1;
+                    }
+                    (c, false) if c == current_char => {
+                        let token = StringToken {
+                            content: self.source[start..=self.position].to_string(),
+                            span: start..self.position,
+                        };
+                        self.position += 1;
+                        return Some(token);
+                    }
+                    (_, _) => {
+                        escaped = false;
+                        self.position += 1;
+                    }
+                }
             }
 
-            escaped = false;
-            self.position += 1;
+            break;
         }
-
         None
     }
 }

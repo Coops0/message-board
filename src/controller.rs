@@ -98,43 +98,49 @@ async fn handle_existing_user(
         return Ok(inject_uuid_cookie(user.user_referral_redirect(), &user));
     }
 
-    if user.admin {
-        let messages = sqlx::query_as!(
-            FullMessage,
-            // language=postgresql
-            "SELECT * FROM messages ORDER BY created_at LIMIT 300"
-        )
-        .fetch_all(pool)
-        .await?;
-
-        // this is so dumb but askama gets confused with vue templating syntax and fails to compile
-        let admin_page = include_str!("../templates/admin-messages.vue")
-            .replace("'{{ MESSAGES }}'", &serde_json::to_string(&messages)?)
-            .replace("'{{ USER_ID }}'", &user.id.to_string())
-            .replace(
-                "'{{ VUE_GLOBAL_SCRIPT }}'",
-                include_str!("../assets/vue.global.prod.js"),
+    if !user.admin {
+        let mut messages = sqlx::query_as!(
+                StandardMessage,
+                // language=postgresql
+                "SELECT id, content, created_at, author FROM messages
+                                   WHERE (published OR author = $1)
+                                   ORDER BY created_at DESC LIMIT 50",
+                user.id
             )
-            .replace("'{{ TAILWIND_STYLES }}'", include_str!("../assets/ts.css"));
+            .fetch_all(pool)
+            .await?;
 
-        return Ok(inject_uuid_cookie(Html(admin_page), &user));
+        messages.reverse();
+
+        let page_template = UserMessagesPageTemplate {
+            messages,
+            user_id_encoded: user.encoded_id(),
+        };
+
+        return Ok(inject_uuid_cookie(MinifiedHtml(page_template), &user));
     }
 
-    let page_template = UserMessagesPageTemplate {
-        messages: sqlx::query_as!(
-            StandardMessage,
-            // language=postgresql
-            "SELECT id, content, created_at, author FROM messages
-                               WHERE (published OR author = $1)
-                               ORDER BY created_at LIMIT 50",
-            user.id
-        )
-        .fetch_all(pool)
-        .await?,
-        user_id_encoded: user.encoded_id(),
-    };
+    let mut messages = sqlx::query_as!(
+        FullMessage,
+        // language=postgresql
+        "SELECT * FROM messages ORDER BY created_at DESC LIMIT 300"
+    )
+    .fetch_all(pool)
+    .await?;
 
-    Ok(inject_uuid_cookie(MinifiedHtml(page_template), &user))
+    messages.reverse();
+
+    // this is so dumb but askama gets confused with vue templating syntax and fails to compile
+    let admin_page = include_str!("../templates/admin-messages.vue")
+        .replace("'{{ MESSAGES }}'", &serde_json::to_string(&messages)?)
+        .replace("'{{ USER_ID }}'", &user.id.to_string())
+        .replace(
+            "'{{ VUE_GLOBAL_SCRIPT }}'",
+            include_str!("../assets/vue.global.prod.js"),
+        )
+        .replace("'{{ TAILWIND_STYLES }}'", include_str!("../assets/ts.css"));
+
+    Ok(inject_uuid_cookie(Html(admin_page), &user))
 }
 
 async fn handle_new_user(

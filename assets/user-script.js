@@ -96,6 +96,12 @@ form.addEventListener('submit', async e => {
     });
 });
 
+input.addEventListener('input', e => {
+    if (e.target.value.length > 320) {
+        e.preventDefault();
+    }
+});
+
 let ws;
 
 function websocket() {
