@@ -43,7 +43,7 @@
               <div class="flex items-start gap-3">
                 <div class="flex-1">
                   <div class="flex justify-between items-start">
-                    <p :style="{ color: getMessageColor(message.author) }" class="text-lg">
+                    <p :style="{ color: getMessageColor(message.author) }" class="text-lg break-words">
                       {{ message.content }}
                     </p>
                     <div v-if="message.created_at" class="text-xs text-zinc-500">
@@ -221,7 +221,7 @@
         ws = new WebSocket(`${protocol}://${location.host}/-`);
         ws.onmessage = ({ data }) => {
           if (data.length) {
-            messages.value.unshift(JSON.parse(data));
+            messages.value = [...messages.value, JSON.parse(data)];
           }
 
           requestAnimationFrame(() => scroll());

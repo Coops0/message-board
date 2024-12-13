@@ -27,8 +27,8 @@
             <div class="messages space-y-4">
                 {% for message in messages %}
                 <div class="group transition-all duration-300">
-                    <div class="p-4 rounded-lg bg-slate-800/50 backdrop-blur border border-slate-700/30 hover:border-slate-600/50 transition-all duration-150 shadow-lg hover:shadow-slate-900/50 blonde" data-b="{{ message.author }}" data-p="{{ message.id }}">
-                        <p class="leading-relaxed">{{ message.content|e }}</p>
+                    <div class="p-4 rounded-lg bg-slate-800/50 backdrop-blur border border-slate-700/30 hover:border-slate-600/50 transition-all duration-150 shadow-lg hover:shadow-slate-900/50 blonde break-words" data-b="{{ message.author }}" data-p="{{ message.id }}">
+                        <p class="leading-relaxed whitespace-pre-wrap break-words">{{ message.content|e }}</p>
                     </div>
                     <div class="h-px w-0 group-hover:w-full bg-gradient-to-r from-transparent via-slate-500/50 to-transparent transition-all duration-500 mt-1"></div>
                 </div>
@@ -37,7 +37,7 @@
         </div>
 
         <div class="bg-slate-900/90 backdrop-blur-xl border-t border-slate-700/30 px-4 py-4 fixed bottom-0 left-0 right-0">
-            <form id="post-form" class="flex gap-3 relative">
+            <form id="post-form" class="flex gap-3 relative max-w-full">
                 <input
                         type="text"
                         id="message"
@@ -63,6 +63,13 @@
 <style>
     body, html {
         background: black;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+
+    .messages p {
+        max-width: 100%;
+        word-break: break-word;
     }
 
     @keyframes blob {
