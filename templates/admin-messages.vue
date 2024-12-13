@@ -149,14 +149,13 @@
 
 <script>'{{ VUE_GLOBAL_SCRIPT }}';</script>
 <script>
-  const { createApp, ref, onMounted, useTemplateRef, computed } = Vue;
+  const { createApp, ref, onMounted, useTemplateRef } = Vue;
 
   createApp({
     setup() {
       const messages = ref('{{ MESSAGES }}' || []);
       const messageInput = ref('');
       const authorInfo = ref({});
-      const colorCache = ref({});
       const userId = `'{{ USER_ID }}'`;
 
       const messagesRef = useTemplateRef('messages-ref');
@@ -210,10 +209,13 @@
       };
 
       const getMessageColor = (author) => {
-        if (!colorCache.value[author]) {
-          colorCache.value[author] = `hsl(${Math.floor(Math.random() * 360)}, 70%, 65%)`;
-        }
-        return colorCache.value[author];
+        const hash = author.split('').reduce((acc, char) => {
+          acc = ((acc << 5) - acc) + char.charCodeAt(0);
+          return acc & acc;
+        }, 0);
+
+        const hue = Math.abs(hash) % 360;
+        return `hsl(${hue}, 70%, 50%)`;
       };
 
       const connectWs = () => {

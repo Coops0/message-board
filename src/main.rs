@@ -1,7 +1,6 @@
 mod admin_controller;
 mod controller;
 mod messages;
-mod random_codes;
 mod user;
 mod util;
 mod ws;

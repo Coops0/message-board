@@ -89,9 +89,6 @@
     }
 </style>
 
-<script>const balled = '{{ user_id_encoded }}';</script>
-<script>
-    {%+ include "../assets/user-script.js" +%}
-</script>
+<script>const balled = '{{ user_id_encoded }}';{% include "../assets/user-script.min.js" %}</script>
 </body>
 </html>

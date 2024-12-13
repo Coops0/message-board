@@ -119,7 +119,7 @@ impl Encoder<&FullMessage> for MessageEncoder {
         self.init(dst);
 
         dst.put_u8(0);
-        
+
         self.put_encrypted(item.id, dst);
         self.put_encrypted(&item.content, dst);
         self.put_encrypted(item.created_at, dst);

@@ -8,7 +8,7 @@ pub struct StandardMessage {
     pub id: Uuid,
     pub content: String,
     pub created_at: DateTime<Utc>,
-    pub author: Uuid
+    pub author: Uuid,
 }
 
 #[derive(Serialize, FromRow, Clone)]

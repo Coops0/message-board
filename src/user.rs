@@ -8,9 +8,9 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::RequestPartsExt;
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use sqlx::FromRow;
 use std::convert::Infallible;
-use serde::Serialize;
 use uuid::Uuid;
 
 #[allow(dead_code)]
@@ -40,11 +40,11 @@ impl User {
     pub fn encoded_id(&self) -> String {
         base64::engine::general_purpose::STANDARD.encode(self.id.to_string())
     }
-    
+
     pub fn encryption_key(&self) -> Vec<u8> {
         let uuid_string = self.id.to_string();
         let uuid_first_bytes = &uuid_string.as_bytes()[0..16];
-        
+
         uuid_first_bytes.to_vec()
     }
 }

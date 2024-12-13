@@ -3,7 +3,7 @@ use crate::user::{inject_uuid_cookie, MaybeLocalUserId, User};
 use crate::util::{ExistingMessages, MaybeUserAgent, MessageAndIvFromHeaders};
 use crate::ws::WebsocketActorMessage;
 use crate::{
-    random_codes::generate_code,
+    util::generate_code,
     util::{ClientIp, MinifiedHtml, WR},
     AppState,
 };

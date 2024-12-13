@@ -19,3 +19,6 @@ node_modules
 
 tailwindcss
 assets/ts.css
+
+assets/user-script.min.js
+assets/user-script.obf.js

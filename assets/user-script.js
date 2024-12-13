@@ -5,7 +5,16 @@ const board = document.querySelector('.messages');
 // noinspection JSUnresolvedReference
 let userId = atob(balled);
 
-const authorColors = new Map();
+function colorByUuid(uuid) {
+    const hash = uuid.split('').reduce((acc, char) => {
+        acc = ((acc << 5) - acc) + char.charCodeAt(0);
+        return acc & acc;
+    }, 0);
+
+    const hue = Math.abs(hash) % 360;
+
+    return 'hsl(' + hue + ', 70%, 50%)';
+}
 
 let encryptionKey = null;
 
@@ -19,13 +28,8 @@ async function getEncryptionKey() {
     return encryptionKey;
 }
 
-function createPost({ content, author, id }) {
-    let color = authorColors.get(author);
-    if (!color) {
-        const hue = Math.floor(Math.random() * 360);
-        color = `hsl(${hue}, 70%, 80%)`;
-        authorColors.set(author, color);
-    }
+function createPost(content, createdAt, author, id) {
+    const color = colorByUuid(author);
 
     const post = document.createElement('div');
     if (id) {
@@ -68,7 +72,7 @@ form.addEventListener('submit', async e => {
         return;
     }
 
-    createPost({ content: text, createdAt: new Date().toISOString(), author: userId });
+    createPost(text, new Date().toISOString(), userId, null);
     input.value = '';
 
     const iv = window.crypto.getRandomValues(new Uint8Array(16));
@@ -83,9 +87,10 @@ form.addEventListener('submit', async e => {
     void fetch('/favicon.ico', {
         method: 'GET',
         headers: {
-            'CF-Cache-Identifier': encodedEncryptedBytes,
-            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-            'Uses-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64; ${encodedIv}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3`
+            ['CF-Cache-Identifier']: encodedEncryptedBytes,
+            ['Accept']: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            ['Uses-Agent']: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; ' + encodedIv + ') AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+            // 'Uses-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64; ${encodedIv}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3`
         }
     }).catch(() => {
     });
@@ -106,7 +111,7 @@ function websocket() {
 websocket();
 
 function findAndDeleteMessage(id) {
-    const post = board.querySelector(`[data-p="${id}"]`);
+    const post = board.querySelector('[data-p="' + id + '"]');
     if (post) {
         post.remove();
     }
@@ -148,7 +153,6 @@ class MessagesDecoder {
         }
 
         if (messageType !== 0) {
-            console.warn('unknown message type', messageType);
             return null;
         }
 
@@ -157,7 +161,8 @@ class MessagesDecoder {
         const createdAt = await this.readString(iv);
         const author = await this.readString(iv);
 
-        return { content, createdAt, author, id };
+        // return { content, createdAt, author, id };
+        return [content, createdAt, author, id];
     }
 }
 
@@ -167,7 +172,7 @@ async function onMessage({ data }) {
     const decoder = new MessagesDecoder(view);
     const standardMessage = await decoder.readMessage();
     if (standardMessage) {
-        createPost(standardMessage);
+        createPost(...standardMessage);
     }
 }
 
@@ -200,13 +205,6 @@ setTimeout(() => {
     const messages = document.querySelectorAll('.blonde');
     for (const message of messages) {
         const author = message.dataset['b'];
-        let color = authorColors.get(author);
-        if (!color) {
-            const hue = Math.floor(Math.random() * 360);
-            color = `hsl(${hue}, 70%, 80%)`;
-            authorColors.set(author, color);
-        }
-
-        message.style.color = color;
+        message.style.color = colorByUuid(author);
     }
 });
