@@ -42,9 +42,14 @@
             ]">
               <div class="flex items-start gap-3">
                 <div class="flex-1">
-                  <p :style="{ color: getMessageColor(message.author) }" class="text-lg">
-                    {{ message.content }}
-                  </p>
+                  <div class="flex justify-between items-start">
+                    <p :style="{ color: getMessageColor(message.author) }" class="text-lg">
+                      {{ message.content }}
+                    </p>
+                    <div v-if="message.created_at" class="text-xs text-zinc-500">
+                      {{ formatRelativeTime(message.created_at) }}
+                    </div>
+                  </div>
 
                   <div v-if="!message.self && authorInfo[message.author]" class="mt-3 space-y-2">
                     <div class="flex items-center gap-3 text-sm">
@@ -116,6 +121,11 @@
                     class="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-yellow-600/30 hover:bg-yellow-600/50">
                   Unflag
                 </button>
+
+                <button @click="() => copyMessage(message.content)"
+                        class="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-zinc-700 hover:bg-zinc-600">
+                  Copy
+                </button>
               </div>
             </div>
           </div>
@@ -139,7 +149,7 @@
 
 <script>'{{ VUE_GLOBAL_SCRIPT }}';</script>
 <script>
-  const { createApp, ref, onMounted, useTemplateRef } = Vue;
+  const { createApp, ref, onMounted, useTemplateRef, computed } = Vue;
 
   createApp({
     setup() {
@@ -154,7 +164,27 @@
       let ws = null;
       let cachedKey = null;
 
-     const scroll = (behavior = 'smooth') => {
+      const formatRelativeTime = (dateString) => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffInSeconds = Math.floor((now - date) / 1000);
+
+        if (diffInSeconds < 60) return 'just now';
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+        if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+        return date.toLocaleDateString();
+      };
+
+      const copyMessage = async (content) => {
+        try {
+          await navigator.clipboard.writeText(content);
+        } catch {
+
+        }
+      };
+
+      const scroll = (behavior = 'smooth') => {
         const m = messagesRef.value;
         if (m && m.length) {
           m[m.length - 1].scrollIntoView({ behavior });
@@ -245,7 +275,8 @@
             content,
             id: crypto.randomUUID(),
             self: true,
-            author: userId
+            author: userId,
+            created_at: new Date().toISOString()
           }
         ];
 
@@ -294,7 +325,9 @@
         togglePublish,
         toggleBan,
         toggleFlag,
-        sendMessage
+        sendMessage,
+        formatRelativeTime,
+        copyMessage
       };
     }
   }).mount('#app');

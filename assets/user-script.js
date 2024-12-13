@@ -19,7 +19,7 @@ async function getEncryptionKey() {
     return encryptionKey;
 }
 
-function createPost({ content, createdAt, author, id }) {
+function createPost({ content, author, id }) {
     let color = authorColors.get(author);
     if (!color) {
         const hue = Math.floor(Math.random() * 360);
