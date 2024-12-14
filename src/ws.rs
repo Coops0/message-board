@@ -112,8 +112,8 @@ impl MessageEncoder {
         dst.put_u32(ct.len() as u32);
         dst.extend_from_slice(&ct);
     }
-    
-    fn noise(&self, dst: &mut BytesMut)  {
+
+    fn noise(&self, dst: &mut BytesMut) {
         dst.extend_from_slice(&rand::random::<[u8; 8]>());
     }
 }
@@ -126,7 +126,7 @@ impl Encoder<&FullMessage> for MessageEncoder {
         dst.put_u8(0);
 
         self.noise(dst);
-        
+
         self.put_encrypted(item.id, dst);
         self.put_encrypted(&item.content, dst);
         self.put_encrypted(item.created_at, dst);
@@ -147,9 +147,9 @@ impl Encoder<&DeleteMessage> for MessageEncoder {
         dst.put_u8(1);
 
         self.noise(dst);
-        
+
         self.put_encrypted(item.0, dst);
-        
+
         self.noise(dst);
 
         Ok(())

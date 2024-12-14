@@ -9,6 +9,7 @@ use crate::user::{inject_uuid_cookie, User};
 use crate::util::WebErrorExtensionMarker;
 use crate::ws::WebsocketActorMessage;
 use axum::extract::{Request, State};
+use axum::http::header::WWW_AUTHENTICATE;
 use axum::http::StatusCode;
 use axum::middleware::{from_fn_with_state, Next};
 use axum::response::{IntoResponse, Response};
@@ -17,7 +18,6 @@ use axum::{RequestExt, Router};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::PgPool;
 use std::env;
-use axum::http::header::WWW_AUTHENTICATE;
 use tokio::sync::mpsc::Sender;
 use tracing::level_filters::LevelFilter;
 use tracing::{info, warn};
@@ -44,10 +44,12 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let pg_connect_opts = env::var("DATABASE_URL")?.parse::<PgConnectOptions>()?;
-    let pool = PgPoolOptions::new()
-        .connect_lazy_with(pg_connect_opts.clone());
+    let pool = PgPoolOptions::new().connect_lazy_with(pg_connect_opts.clone());
 
-    info!("attempting to run migrations with db host {}...", pg_connect_opts.get_host());
+    info!(
+        "attempting to run migrations with db host {}...",
+        pg_connect_opts.get_host()
+    );
     if let Err(why) = sqlx::migrate!().run(&pool).await {
         warn!("migrations failed: {why:?}");
     } else {
@@ -96,7 +98,8 @@ pub async fn fallback() -> Response {
     // Redirect::temporary(original_uri.path())
     // (StatusCode::INTERNAL_SERVER_ERROR, "nah").into_response()
     let mut res = StatusCode::UNAUTHORIZED.into_response();
-    res.headers_mut().insert(WWW_AUTHENTICATE, "Basic".parse().unwrap());
+    res.headers_mut()
+        .insert(WWW_AUTHENTICATE, "Basic".parse().unwrap());
 
     res
 }
