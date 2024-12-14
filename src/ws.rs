@@ -59,9 +59,8 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
                     .filter_map(|(socket, user)| -> Option<SendMessageFuture> {
                         let mut message_enc = MessageEncoder::new(user.encryption_key());
 
-                        let ws_msg = message
-                            .encode_message_for(&mut message_enc, user, is_update)
-                            .ok()??;
+                        let ws_msg =
+                            message.encode_message_for(&mut message_enc, user, is_update)?;
 
                         let fut =
                             async move { socket.send(ws_msg).await.map_err(|e| (e, user.id)) };
@@ -113,7 +112,7 @@ impl MessageEncoder {
         dst.extend_from_slice(&ct);
     }
 
-    fn noise(&self, dst: &mut BytesMut) {
+    fn noise(dst: &mut BytesMut) {
         dst.extend_from_slice(&rand::random::<[u8; 8]>());
     }
 }
@@ -125,14 +124,14 @@ impl Encoder<&FullMessage> for MessageEncoder {
         self.init(dst);
         dst.put_u8(0);
 
-        self.noise(dst);
+        Self::noise(dst);
 
         self.put_encrypted(item.id, dst);
         self.put_encrypted(&item.content, dst);
         self.put_encrypted(item.created_at, dst);
         self.put_encrypted(item.author, dst);
 
-        self.noise(dst);
+        Self::noise(dst);
 
         Ok(())
     }
@@ -146,11 +145,11 @@ impl Encoder<&DeleteMessage> for MessageEncoder {
         self.init(dst);
         dst.put_u8(1);
 
-        self.noise(dst);
+        Self::noise(dst);
 
         self.put_encrypted(item.0, dst);
 
-        self.noise(dst);
+        Self::noise(dst);
 
         Ok(())
     }
@@ -162,23 +161,24 @@ impl FullMessage {
         encoder: &mut MessageEncoder,
         user: &User,
         is_update: bool,
-    ) -> anyhow::Result<Option<Message>> {
+    ) -> Option<Message> {
         if user.admin {
             return if is_update {
-                Ok(None)
+                None
             } else {
-                Ok(Some(Message::Text(serde_json::to_string(&self)?)))
+                Some(Message::Text(serde_json::to_string(&self).ok()?))
             };
         }
 
         let mut body = BytesMut::new();
 
         if is_update && !self.published {
-            encoder.encode(&DeleteMessage(self.id), &mut body)?;
+            encoder.encode(&DeleteMessage(self.id), &mut body)
         } else {
-            encoder.encode(self, &mut body)?;
+            encoder.encode(self, &mut body)
         }
+        .ok()?;
 
-        Ok(Some(Message::Binary(body.freeze().to_vec())))
+        Some(Message::Binary(body.freeze().to_vec()))
     }
 }
