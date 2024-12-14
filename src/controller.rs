@@ -100,15 +100,15 @@ async fn handle_existing_user(
 
     if !user.admin {
         let mut messages = sqlx::query_as!(
-                StandardMessage,
-                // language=postgresql
-                "SELECT id, content, created_at, author FROM messages
+            StandardMessage,
+            // language=postgresql
+            "SELECT id, content, created_at, author FROM messages
                                    WHERE (published OR author = $1)
                                    ORDER BY created_at DESC LIMIT 50",
-                user.id
-            )
-            .fetch_all(pool)
-            .await?;
+            user.id
+        )
+        .fetch_all(pool)
+        .await?;
 
         messages.reverse();
 
@@ -195,8 +195,15 @@ pub async fn create_message(
             iv.as_slice().into(),
         );
 
+        // first & last 8 bytes are noise
+        let Some(cleaned_encrypted_content_bytes) =
+            encrypted_content_bytes.get(8..encrypted_content_bytes.len() - 8)
+        else {
+            return;
+        };
+
         let Ok(decrypted_content) =
-            decryptor.decrypt_padded_vec_mut::<Pkcs7>(encrypted_content_bytes.as_slice())
+            decryptor.decrypt_padded_vec_mut::<Pkcs7>(cleaned_encrypted_content_bytes)
         else {
             return;
         };

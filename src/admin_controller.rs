@@ -3,7 +3,7 @@ use crate::user::User;
 use crate::util::WR;
 use crate::ws::WebsocketActorMessage;
 use crate::{fallback, AppState};
-use axum::extract::{OriginalUri, Path, Request, State};
+use axum::extract::{Path, Request, State};
 use axum::middleware::{from_fn_with_state, Next};
 use axum::response::Response;
 use axum::routing::{get, patch};
@@ -33,8 +33,7 @@ async fn verify_admin_layer(
         }
     }
 
-    let original_uri = request.extract_parts::<OriginalUri>().await.unwrap();
-    fallback(original_uri).await
+    fallback().await
 }
 
 async fn get_user(

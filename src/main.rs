@@ -8,7 +8,7 @@ mod ws;
 use crate::user::{inject_uuid_cookie, User};
 use crate::util::WebErrorExtensionMarker;
 use crate::ws::WebsocketActorMessage;
-use axum::extract::{OriginalUri, Request, State};
+use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::{from_fn_with_state, Next};
 use axum::response::{IntoResponse, Response};
@@ -84,15 +84,15 @@ async fn main() -> anyhow::Result<()> {
 }
 
 #[allow(clippy::unused_async)]
-async fn inner_fallback(original_uri: OriginalUri, user: Option<User>) -> Response {
+async fn inner_fallback(user: Option<User>) -> Response {
     match user {
         Some(user) => inject_uuid_cookie(user.user_referral_redirect(), &user),
-        None => fallback(original_uri).await,
+        None => fallback().await,
     }
 }
 
 #[allow(clippy::unused_async, clippy::missing_panics_doc)]
-pub async fn fallback(OriginalUri(_original_uri): OriginalUri) -> Response {
+pub async fn fallback() -> Response {
     // Redirect::temporary(original_uri.path())
     // (StatusCode::INTERNAL_SERVER_ERROR, "nah").into_response()
     let mut res = StatusCode::UNAUTHORIZED.into_response();
@@ -106,7 +106,6 @@ async fn intercept_web_error(
     mut request: Request,
     next: Next,
 ) -> Response {
-    let original_uri = request.extract_parts::<OriginalUri>().await.unwrap();
     let maybe_user = request
         .extract_parts_with_state::<User, AppState>(&state)
         .await
@@ -122,7 +121,7 @@ async fn intercept_web_error(
     }
 
     let Some(user) = maybe_user else {
-        return fallback(original_uri).await;
+        return fallback().await;
     };
 
     inject_uuid_cookie(user.user_referral_redirect(), &user)

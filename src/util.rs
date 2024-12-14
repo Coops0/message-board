@@ -52,8 +52,13 @@ impl<S> FromRequestParts<S> for ClientIp {
                 .get("CF-Connecting-IP")
                 .and_then(|ip| ip.to_str().ok())
                 .and_then(|ip| ip.parse::<IpAddr>().ok())
-                // .unwrap_or_else(|| IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
-                .unwrap_or_else(|| panic!("failed to get client ip")),
+                .unwrap_or_else(|| {
+                    #[cfg(not(debug_assertions))]
+                    panic!("failed to get client ip");
+
+                    #[cfg(debug_assertions)]
+                    IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))
+                }),
         ))
     }
 }

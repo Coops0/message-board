@@ -1,6 +1,6 @@
 use crate::messages::FullMessage;
 use crate::user::User;
-use crate::AppState;
+use crate::{fallback, AppState};
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
 use axum::response::Response;
@@ -17,10 +17,14 @@ use uuid::Uuid;
 
 #[allow(clippy::unused_async)]
 pub async fn ws_route(
-    ws: WebSocketUpgrade,
+    maybe_ws: Option<WebSocketUpgrade>,
     owner: User,
     State(AppState { tx, .. }): State<AppState>,
 ) -> Response {
+    let Some(ws) = maybe_ws else {
+        return fallback().await;
+    };
+
     ws.on_upgrade(move |socket| async move {
         let _ = tx
             .send(WebsocketActorMessage::Socket { socket, owner })
@@ -108,6 +112,10 @@ impl MessageEncoder {
         dst.put_u32(ct.len() as u32);
         dst.extend_from_slice(&ct);
     }
+    
+    fn noise(&self, dst: &mut BytesMut)  {
+        dst.extend_from_slice(&rand::random::<[u8; 8]>());
+    }
 }
 
 impl Encoder<&FullMessage> for MessageEncoder {
@@ -115,13 +123,16 @@ impl Encoder<&FullMessage> for MessageEncoder {
 
     fn encode(&mut self, item: &FullMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
         self.init(dst);
-
         dst.put_u8(0);
 
+        self.noise(dst);
+        
         self.put_encrypted(item.id, dst);
         self.put_encrypted(&item.content, dst);
         self.put_encrypted(item.created_at, dst);
         self.put_encrypted(item.author, dst);
+
+        self.noise(dst);
 
         Ok(())
     }
@@ -133,9 +144,13 @@ impl Encoder<&DeleteMessage> for MessageEncoder {
 
     fn encode(&mut self, item: &DeleteMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
         self.init(dst);
-
         dst.put_u8(1);
+
+        self.noise(dst);
+        
         self.put_encrypted(item.0, dst);
+        
+        self.noise(dst);
 
         Ok(())
     }

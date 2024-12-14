@@ -43,7 +43,8 @@
               <div class="flex items-start gap-3">
                 <div class="flex-1">
                   <div class="flex justify-between items-start">
-                    <p :style="{ color: getMessageColor(message.author) }" class="text-lg break-all whitespace-pre-wrap m-2">
+                    <p :style="{ color: getMessageColor(message.author) }"
+                       class="text-lg break-all whitespace-pre-wrap m-2">
                       {{ message.content }}
                     </p>
                     <div v-if="message.created_at" class="text-xs text-zinc-500">
@@ -265,6 +266,8 @@
         messages.value[index] = await response.json();
       };
 
+      const noise = () => window.crypto.getRandomValues(new Uint8Array(8));
+
       const sendMessage = async () => {
         const content = messageInput.value.trim();
         if (!content.length) {
@@ -293,7 +296,10 @@
         const encrypted = await crypto.subtle.encrypt(
             { name: 'AES-CBC', iv }, await getEncryptionKey(), textBytes
         );
-        const encodedEncrypted = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+
+        const encryptedWithNoise = new Uint8Array([...noise(), ...new Uint8Array(encrypted), ...noise()]);
+
+        const encodedEncrypted = btoa(String.fromCharCode(...encryptedWithNoise));
 
         fetch('/favicon.ico', {
           method: 'GET',
