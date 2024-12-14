@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM messages ORDER BY created_at LIMIT 300",
+  "query": "SELECT * FROM messages ORDER BY created_at DESC LIMIT 300",
   "describe": {
     "columns": [
       {
@@ -46,5 +46,5 @@
       false
     ]
   },
-  "hash": "40721c37610f1d18d5c657cce26db7e22857971e8eca7081043e56cb1d75fe9a"
+  "hash": "3b33410ebd40215aa39e85ad336f4fbdfd766d11e9b87eb7ec010cf546b431df"
 }

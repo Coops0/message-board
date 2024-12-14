@@ -1,0 +1,20 @@
+services:
+  message-board:
+    image: ghcr.io/coops0/message-board:latest
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - message-board-cache:/app/cache
+    platform: linux/amd64
+
+volumes:
+  message-board-cache:

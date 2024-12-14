@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, content, created_at, author FROM messages\n                               WHERE (published OR author = $1)\n                               ORDER BY created_at LIMIT 50",
+  "query": "SELECT id, content, created_at, author FROM messages\n                                   WHERE (published OR author = $1)\n                                   ORDER BY created_at DESC LIMIT 50",
   "describe": {
     "columns": [
       {
@@ -36,5 +36,5 @@
       false
     ]
   },
-  "hash": "6aaef45ba59fb62e0d0a9fb49ed6707044914025405eed9f6763b38ab5a5a99e"
+  "hash": "7a3373b1e42f3bb68e8911a71babede3a68ad286048c23b99f4d18ad0ab39fa9"
 }

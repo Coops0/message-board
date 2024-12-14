@@ -17,6 +17,7 @@ use axum::{RequestExt, Router};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::PgPool;
 use std::env;
+use axum::http::header::WWW_AUTHENTICATE;
 use tokio::sync::mpsc::Sender;
 use tracing::level_filters::LevelFilter;
 use tracing::{info, warn};
@@ -42,10 +43,11 @@ async fn main() -> anyhow::Result<()> {
         .compact()
         .init();
 
+    let pg_connect_opts = env::var("DATABASE_URL")?.parse::<PgConnectOptions>()?;
     let pool = PgPoolOptions::new()
-        .connect_lazy_with(env::var("DATABASE_URL")?.parse::<PgConnectOptions>()?);
+        .connect_lazy_with(pg_connect_opts.clone());
 
-    info!("attempting to run migrations...");
+    info!("attempting to run migrations with db host {}...", pg_connect_opts.get_host());
     if let Err(why) = sqlx::migrate!().run(&pool).await {
         warn!("migrations failed: {why:?}");
     } else {
@@ -75,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
     #[allow(clippy::let_underscore_future)]
     let _ = tokio::spawn(ws::socket_owner_actor(rx));
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:4000").await?;
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:5000").await?;
     axum::serve(listener, app.into_make_service())
         .await
         .map_err(Into::into)
@@ -89,10 +91,14 @@ async fn inner_fallback(original_uri: OriginalUri, user: Option<User>) -> Respon
     }
 }
 
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::missing_panics_doc)]
 pub async fn fallback(OriginalUri(_original_uri): OriginalUri) -> Response {
     // Redirect::temporary(original_uri.path())
-    (StatusCode::INTERNAL_SERVER_ERROR, "nah").into_response()
+    // (StatusCode::INTERNAL_SERVER_ERROR, "nah").into_response()
+    let mut res = StatusCode::UNAUTHORIZED.into_response();
+    res.headers_mut().insert(WWW_AUTHENTICATE, "Basic".parse().unwrap());
+
+    res
 }
 
 async fn intercept_web_error(

@@ -13,7 +13,6 @@ use std::pin::Pin;
 use tokio::sync::mpsc::Receiver;
 use tokio_util::bytes::{BufMut, BytesMut};
 use tokio_util::codec::Encoder;
-use tracing::warn;
 use uuid::Uuid;
 
 #[allow(clippy::unused_async)]

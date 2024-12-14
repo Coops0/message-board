@@ -12,7 +12,7 @@ use sqlx::FromRow;
 use std::cell::LazyCell;
 use std::convert::Infallible;
 use std::net::IpAddr;
-use tracing::{info, warn};
+use tracing::warn;
 
 #[derive(Debug)]
 pub struct WE(pub anyhow::Error);
@@ -52,9 +52,8 @@ impl<S> FromRequestParts<S> for ClientIp {
                 .get("CF-Connecting-IP")
                 .and_then(|ip| ip.to_str().ok())
                 .and_then(|ip| ip.parse::<IpAddr>().ok())
-                // todo
-                .unwrap_or_else(|| IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
-            // .unwrap_or_else(|| panic!("failed to get client ip")),
+                // .unwrap_or_else(|| IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
+                .unwrap_or_else(|| panic!("failed to get client ip")),
         ))
     }
 }
@@ -184,7 +183,7 @@ impl ExistingMessages {
         }
 
         let profanity_type = Censor::from_str(content).analyze();
-        info!("profanity type type: {:?}", profanity_type);
+        // info!("profanity type: {:?}", profanity_type);
 
         profanity_type.is(Type::SEVERE)
     }

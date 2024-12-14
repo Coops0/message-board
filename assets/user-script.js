@@ -45,7 +45,7 @@ function createPost(content, createdAt, author, id) {
     const doc = parser.parseFromString(content, 'text/html');
 
     const messageContent = document.createElement('p');
-    messageContent.className = 'leading-relaxed';
+    messageContent.className = 'leading-relaxed whitespace-pre-wrap break-all';
     messageContent.style.color = color;
     messageContent.textContent = doc.documentElement.innerText;
 

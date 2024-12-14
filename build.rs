@@ -5,6 +5,7 @@ use std::fs::{remove_file, File};
 use std::io::{Read, Write};
 use std::process::Command;
 
+#[cfg(debug_assertions)]
 fn main() {
     // println!("cargo:rerun-if-changed=templates/");
     // println!("cargo:rerun-if-changed=assets/user-script.js");
@@ -39,6 +40,9 @@ fn main() {
 
     remove_file("assets/user-script.obf.js").unwrap();
 }
+
+#[cfg(not(debug_assertions))]
+fn main() {}
 
 // this is actually disgusting
 

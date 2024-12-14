@@ -43,7 +43,7 @@
               <div class="flex items-start gap-3">
                 <div class="flex-1">
                   <div class="flex justify-between items-start">
-                    <p :style="{ color: getMessageColor(message.author) }" class="text-lg break-words">
+                    <p :style="{ color: getMessageColor(message.author) }" class="text-lg break-all whitespace-pre-wrap m-2">
                       {{ message.content }}
                     </p>
                     <div v-if="message.created_at" class="text-xs text-zinc-500">
