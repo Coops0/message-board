@@ -42,7 +42,7 @@ pub async fn user_referred_index(
 pub async fn location_referred_index(
     State(AppState { pool, .. }): State<AppState>,
     Path(location_code): Path<String>,
-    local_user_id: MaybeLocalUserId,
+    maybe_local_user_id: MaybeLocalUserId,
     user: Option<User>,
     ClientIp(ip): ClientIp,
     MaybeUserAgent(maybe_user_agent): MaybeUserAgent
@@ -59,13 +59,16 @@ pub async fn location_referred_index(
     .fetch_one(&pool)
     .await?;
 
+    let local_user_id = maybe_local_user_id.make();
+    let new_user_code = generate_code();
+    
     let user = sqlx::query_as!(
         User,
         "INSERT INTO users (id, code, location_referral, ip, user_agent)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING *",
-        local_user_id.make(),
-        generate_code(),
+        local_user_id,
+        new_user_code,
         found_location_code,
         ip.to_string(),
         maybe_user_agent.as_deref()
