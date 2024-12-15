@@ -55,12 +55,15 @@ fn main() -> anyhow::Result<()> {
 
     printer.init()?;
 
+    let qr_code = format!("{URI_PREFIX}{name}");
+    println!("qr code link: {qr_code}");
+
     for i in 0..amount {
         println!("{}/{amount}", i + 1);
 
-        printer.feeds(2)?.justify(JustifyMode::CENTER)?.qrcode_option(
-            &format!("{URI_PREFIX}{name}"),
-            QRCodeOption::new(QRCodeModel::Model1, 16, QRCodeCorrectionLevel::H),
+        printer.justify(JustifyMode::CENTER)?.qrcode_option(
+            &qr_code,
+            QRCodeOption::new(QRCodeModel::Model2, 16, QRCodeCorrectionLevel::H),
         )?;
 
         if !subtext.is_empty() {
