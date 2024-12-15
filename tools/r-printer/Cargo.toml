@@ -7,4 +7,4 @@ edition = "2021"
 anyhow = "1.0.94"
 escpos = { version = "0.13.1", default-features = false, features = ["native_usb", "usb", "codes_2d"] }
 nusb = "0.1.12"
-inquire = "0.7.5"
+clap = { version = "4.5.23", features = ["derive"] }
