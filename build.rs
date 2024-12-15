@@ -1,9 +1,7 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use rand::distributions::{Alphanumeric, DistString};
 use std::{
-    fs::{remove_file, File},
-    io::{Read, Write},
-    process::Command
+    fs::{remove_file, File}, io::{Read, Write}, process::Command
 };
 
 #[cfg(debug_assertions)]
@@ -62,9 +60,7 @@ impl StringToken {
     #[inline]
     fn should_skip(&self) -> bool {
         self.content.len() < 3
-            || SKIP_PATTERNS
-                .iter()
-                .any(|&pattern| self.content.contains(pattern))
+            || SKIP_PATTERNS.iter().any(|&pattern| self.content.contains(pattern))
     }
 }
 
@@ -83,10 +79,8 @@ impl StringEncoder {
     fn new(source: String) -> Self {
         let chars = source.chars().collect();
 
-        let decoder_function_name = format!(
-            "_{}",
-            Alphanumeric.sample_string(&mut rand::thread_rng(), 8)
-        );
+        let decoder_function_name =
+            format!("_{}", Alphanumeric.sample_string(&mut rand::thread_rng(), 8));
 
         let decoder_function = format!(
             "function {decoder_function_name}(s){{return atob(s).split('').map(c=>String.fromCharCode((c.charCodeAt(0)^{XOR_KEY}))).map(c=>String.fromCharCode((c.charCodeAt(0)+256-{ROTATE_KEY})%256)).join('')}}"
@@ -111,9 +105,7 @@ impl StringEncoder {
         let mut encoder = Self::new(source);
         encoder.process_strings();
 
-        encoder
-            .output
-            .insert_str(encoder.output.len(), &encoder.decoder_function);
+        encoder.output.insert_str(encoder.output.len(), &encoder.decoder_function);
 
         output.write_all(encoder.output.as_bytes())
     }
@@ -144,17 +136,13 @@ impl StringEncoder {
                 .collect::<Vec<String>>()
                 .join(",");
 
-            format!(
-                "{}(String.fromCharCode({encoded_byte_delimited}))",
-                self.decoder_function_name
-            )
+            format!("{}(String.fromCharCode({encoded_byte_delimited}))", self.decoder_function_name)
         };
 
         {
             let adjusted_start = token.span.start + self.offset;
             let adjusted_end = token.span.end + self.offset;
-            self.output
-                .replace_range(adjusted_start..=adjusted_end, &replacement);
+            self.output.replace_range(adjusted_start..=adjusted_end, &replacement);
         }
 
         let old_len = token.span.end - token.span.start + 1;

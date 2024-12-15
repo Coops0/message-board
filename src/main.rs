@@ -6,21 +6,13 @@ mod util;
 mod ws;
 
 use crate::{
-    user::{inject_uuid_cookie, User},
-    util::WebErrorExtensionMarker,
-    ws::WebsocketActorMessage
+    user::{inject_uuid_cookie, User}, util::WebErrorExtensionMarker, ws::WebsocketActorMessage
 };
 use axum::{
-    extract::{Request, State},
-    http::{header::WWW_AUTHENTICATE, StatusCode},
-    middleware::{from_fn_with_state, Next},
-    response::{IntoResponse, Response},
-    routing::get,
-    RequestExt, Router
+    extract::{Request, State}, http::{header::WWW_AUTHENTICATE, StatusCode}, middleware::{from_fn_with_state, Next}, response::{IntoResponse, Response}, routing::get, RequestExt, Router
 };
 use sqlx::{
-    postgres::{PgConnectOptions, PgPoolOptions},
-    PgPool
+    postgres::{PgConnectOptions, PgPoolOptions}, PgPool
 };
 use std::env;
 use tokio::sync::mpsc::Sender;
@@ -42,18 +34,12 @@ async fn main() -> anyhow::Result<()> {
         .from_env()?
         .add_directive("message_board=debug".parse()?);
 
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .compact()
-        .init();
+    tracing_subscriber::fmt().with_env_filter(filter).compact().init();
 
     let pg_connect_opts = env::var("DATABASE_URL")?.parse::<PgConnectOptions>()?;
     let pool = PgPoolOptions::new().connect_lazy_with(pg_connect_opts.clone());
 
-    info!(
-        "attempting to run migrations with db host {}...",
-        pg_connect_opts.get_host()
-    );
+    info!("attempting to run migrations with db host {}...", pg_connect_opts.get_host());
     if let Err(why) = sqlx::migrate!().run(&pool).await {
         warn!("migrations failed: {why:?}");
     } else {
@@ -69,24 +55,16 @@ async fn main() -> anyhow::Result<()> {
         .route("/u/:code", get(controller::user_referred_index))
         .route("/favicon.ico", get(controller::create_message))
         .route("/-", get(ws::ws_route))
-        .nest(
-            "/admin",
-            admin_controller::admin_controller(AppState::clone(&state))
-        )
+        .nest("/admin", admin_controller::admin_controller(AppState::clone(&state)))
         .fallback(inner_fallback)
-        .layer(from_fn_with_state(
-            AppState::clone(&state),
-            intercept_web_error
-        ))
+        .layer(from_fn_with_state(AppState::clone(&state), intercept_web_error))
         .with_state(state);
 
     #[allow(clippy::let_underscore_future)]
     let _ = tokio::spawn(ws::socket_owner_actor(rx));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:5000").await?;
-    axum::serve(listener, app.into_make_service())
-        .await
-        .map_err(Into::into)
+    axum::serve(listener, app.into_make_service()).await.map_err(Into::into)
 }
 
 #[allow(clippy::unused_async)]
@@ -102,8 +80,7 @@ pub async fn fallback() -> Response {
     // Redirect::temporary(original_uri.path())
     // (StatusCode::INTERNAL_SERVER_ERROR, "nah").into_response()
     let mut res = StatusCode::UNAUTHORIZED.into_response();
-    res.headers_mut()
-        .insert(WWW_AUTHENTICATE, "Basic".parse().unwrap());
+    res.headers_mut().insert(WWW_AUTHENTICATE, "Basic".parse().unwrap());
 
     res
 }
@@ -113,17 +90,10 @@ async fn intercept_web_error(
     mut request: Request,
     next: Next
 ) -> Response {
-    let maybe_user = request
-        .extract_parts_with_state::<User, AppState>(&state)
-        .await
-        .ok();
+    let maybe_user = request.extract_parts_with_state::<User, AppState>(&state).await.ok();
 
     let response = next.run(request).await;
-    if response
-        .extensions()
-        .get::<WebErrorExtensionMarker>()
-        .is_none()
-    {
+    if response.extensions().get::<WebErrorExtensionMarker>().is_none() {
         return response;
     }
 

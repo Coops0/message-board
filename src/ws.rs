@@ -1,20 +1,16 @@
 use crate::{fallback, messages::FullMessage, user::User, AppState};
 use axum::{
     extract::{
-        ws::{Message, WebSocket},
-        State, WebSocketUpgrade
-    },
-    response::Response
+        ws::{Message, WebSocket}, State, WebSocketUpgrade
+    }, response::Response
 };
 use cbc::{
-    cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit},
-    Encryptor
+    cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit}, Encryptor
 };
 use std::{future::Future, io, pin::Pin};
 use tokio::sync::mpsc::Receiver;
 use tokio_util::{
-    bytes::{BufMut, BytesMut},
-    codec::Encoder
+    bytes::{BufMut, BytesMut}, codec::Encoder
 };
 use uuid::Uuid;
 
@@ -29,21 +25,13 @@ pub async fn ws_route(
     };
 
     ws.on_upgrade(move |socket| async move {
-        let _ = tx
-            .send(WebsocketActorMessage::Socket { socket, owner })
-            .await;
+        let _ = tx.send(WebsocketActorMessage::Socket { socket, owner }).await;
     })
 }
 
 pub enum WebsocketActorMessage {
-    Socket {
-        socket: WebSocket,
-        owner: User
-    },
-    Message {
-        message: FullMessage,
-        is_update: bool
-    }
+    Socket { socket: WebSocket, owner: User },
+    Message { message: FullMessage, is_update: bool }
 }
 
 type SendMessageFuture<'a> =
@@ -106,10 +94,8 @@ impl MessageEncoder {
 
     #[allow(clippy::cast_possible_truncation, clippy::needless_pass_by_value)]
     fn put_encrypted<S: ToString>(&self, content: S, dst: &mut BytesMut) {
-        let ct = self
-            .encryptor
-            .clone()
-            .encrypt_padded_vec_mut::<Pkcs7>(content.to_string().as_bytes());
+        let ct =
+            self.encryptor.clone().encrypt_padded_vec_mut::<Pkcs7>(content.to_string().as_bytes());
 
         dst.put_u32(ct.len() as u32);
         dst.extend_from_slice(&ct);

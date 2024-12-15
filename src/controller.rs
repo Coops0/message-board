@@ -1,23 +1,15 @@
 use crate::{
-    messages::{FullMessage, StandardMessage},
-    user::{inject_uuid_cookie, MaybeLocalUserId, User},
-    util::{
-        generate_code, ClientIp, ExistingMessages, MaybeUserAgent, MessageAndIvFromHeaders,
-        MinifiedHtml, WR
-    },
-    ws::WebsocketActorMessage,
-    AppState
+    messages::{FullMessage, StandardMessage}, user::{inject_uuid_cookie, MaybeLocalUserId, User}, util::{
+        generate_code, ClientIp, ExistingMessages, MaybeUserAgent, MessageAndIvFromHeaders, MinifiedHtml, WR
+    }, ws::WebsocketActorMessage, AppState
 };
 use aes::cipher::block_padding::Pkcs7;
 use askama::Template;
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    response::{Html, Response}
+    extract::{Path, State}, http::StatusCode, response::{Html, Response}
 };
 use cbc::{
-    cipher::{BlockDecryptMut, KeyIvInit},
-    Decryptor
+    cipher::{BlockDecryptMut, KeyIvInit}, Decryptor
 };
 use sqlx::PgPool;
 use std::net::IpAddr;
@@ -41,14 +33,7 @@ pub async fn user_referred_index(
     match user {
         Some(user) => handle_existing_user(&pool, user, referral_code).await,
         None => {
-            handle_new_user(
-                &pool,
-                maybe_local_user_id,
-                ip,
-                maybe_user_agent,
-                referral_code
-            )
-            .await
+            handle_new_user(&pool, maybe_local_user_id, ip, maybe_user_agent, referral_code).await
         }
     }
     .map_err(Into::into)
@@ -114,10 +99,8 @@ async fn handle_existing_user(
 
         messages.reverse();
 
-        let page_template = UserMessagesPageTemplate {
-            messages,
-            user_id_encoded: user.encoded_id()
-        };
+        let page_template =
+            UserMessagesPageTemplate { messages, user_id_encoded: user.encoded_id() };
 
         return Ok(inject_uuid_cookie(MinifiedHtml(page_template), &user));
     }
@@ -136,10 +119,7 @@ async fn handle_existing_user(
     let admin_page = include_str!("../templates/admin-messages.vue")
         .replace("'{{ MESSAGES }}'", &serde_json::to_string(&messages)?)
         .replace("'{{ USER_ID }}'", &user.id.to_string())
-        .replace(
-            "'{{ VUE_GLOBAL_SCRIPT }}'",
-            include_str!("../assets/vue.global.prod.js")
-        )
+        .replace("'{{ VUE_GLOBAL_SCRIPT }}'", include_str!("../assets/vue.global.prod.js"))
         .replace("'{{ TAILWIND_STYLES }}'", include_str!("../assets/ts.css"));
 
     Ok(inject_uuid_cookie(Html(admin_page), &user))
@@ -152,13 +132,10 @@ async fn handle_new_user(
     MaybeUserAgent(maybe_user_agent): MaybeUserAgent,
     referral_code: String
 ) -> anyhow::Result<Response> {
-    let referrer_user = sqlx::query_as!(
-        User,
-        "SELECT * FROM users WHERE code = $1 LIMIT 1",
-        &referral_code
-    )
-    .fetch_one(pool)
-    .await?;
+    let referrer_user =
+        sqlx::query_as!(User, "SELECT * FROM users WHERE code = $1 LIMIT 1", &referral_code)
+            .fetch_one(pool)
+            .await?;
 
     let local_user_id = maybe_local_user_id.make();
     let new_user_code = generate_code();
@@ -250,12 +227,9 @@ pub async fn create_message(
         .await
         .expect("failed to insert message");
 
-        tx.send(WebsocketActorMessage::Message {
-            message: full_message,
-            is_update: false
-        })
-        .await
-        .expect("failed to send message");
+        tx.send(WebsocketActorMessage::Message { message: full_message, is_update: false })
+            .await
+            .expect("failed to send message");
     });
 
     StatusCode::NOT_FOUND

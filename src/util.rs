@@ -1,9 +1,7 @@
 use anyhow::Context;
 use askama::Template;
 use axum::{
-    extract::FromRequestParts,
-    http::{header::USER_AGENT, request::Parts},
-    response::{Html, IntoResponse, Response}
+    extract::FromRequestParts, http::{header::USER_AGENT, request::Parts}, response::{Html, IntoResponse, Response}
 };
 use base64::Engine;
 use minify_html::Cfg;
@@ -100,13 +98,7 @@ where
     type Rejection = Infallible;
 
     async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
-        Ok(Self(
-            parts
-                .headers
-                .get(USER_AGENT)
-                .and_then(|ua| ua.to_str().ok())
-                .map(ammonia::clean)
-        ))
+        Ok(Self(parts.headers.get(USER_AGENT).and_then(|ua| ua.to_str().ok()).map(ammonia::clean)))
     }
 }
 
@@ -120,11 +112,8 @@ where
     type Rejection = WE;
 
     async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
-        let raw_content_header = parts
-            .headers
-            .get("CF-Cache-Identifier")
-            .context("failed to get header")?
-            .as_bytes();
+        let raw_content_header =
+            parts.headers.get("CF-Cache-Identifier").context("failed to get header")?.as_bytes();
 
         let raw_iv_header = parts
             .headers
@@ -215,10 +204,8 @@ pub fn generate_code() -> String {
     let mut rng = rand::thread_rng();
 
     #[allow(clippy::borrow_interior_mutable_const)]
-    let words = WORDS_ARRAY
-        .choose_multiple(&mut rng, 2)
-        .map(ToString::to_string)
-        .collect::<Vec<String>>();
+    let words =
+        WORDS_ARRAY.choose_multiple(&mut rng, 2).map(ToString::to_string).collect::<Vec<String>>();
 
     let [first_word, second_word] = &words[..] else {
         unreachable!();

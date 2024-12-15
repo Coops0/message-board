@@ -2,11 +2,7 @@ use crate::{
     fallback, messages::FullMessage, user::User, util::WR, ws::WebsocketActorMessage, AppState
 };
 use axum::{
-    extract::{Path, Request, State},
-    middleware::{from_fn_with_state, Next},
-    response::Response,
-    routing::{get, patch},
-    Json, RequestExt, Router
+    extract::{Path, Request, State}, middleware::{from_fn_with_state, Next}, response::Response, routing::{get, patch}, Json, RequestExt, Router
 };
 use serde::Deserialize;
 use uuid::Uuid;
@@ -23,9 +19,7 @@ async fn verify_admin_layer(
     mut request: Request,
     next: Next
 ) -> Response {
-    let user = request
-        .extract_parts_with_state::<User, AppState>(&state)
-        .await;
+    let user = request.extract_parts_with_state::<User, AppState>(&state).await;
 
     if let Ok(user) = user {
         if user.admin {
@@ -111,10 +105,7 @@ async fn update_message(
     .await?;
 
     let _ = tx
-        .send(WebsocketActorMessage::Message {
-            message: updated_message.clone(),
-            is_update: true
-        })
+        .send(WebsocketActorMessage::Message { message: updated_message.clone(), is_update: true })
         .await;
 
     Ok(Json(updated_message))

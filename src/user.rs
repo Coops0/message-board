@@ -1,13 +1,9 @@
 use crate::{util::WE, AppState};
 use anyhow::anyhow;
 use axum::{
-    extract::FromRequestParts,
-    http::{
-        header::{COOKIE, SET_COOKIE},
-        request::Parts
-    },
-    response::{IntoResponse, Redirect, Response},
-    RequestPartsExt
+    extract::FromRequestParts, http::{
+        header::{COOKIE, SET_COOKIE}, request::Parts
+    }, response::{IntoResponse, Redirect, Response}, RequestPartsExt
 };
 use base64::Engine;
 use chrono::{DateTime, Utc};
