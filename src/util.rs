@@ -1,17 +1,16 @@
 use anyhow::Context;
 use askama::Template;
-use axum::extract::FromRequestParts;
-use axum::http::header::USER_AGENT;
-use axum::http::request::Parts;
-use axum::response::{Html, IntoResponse, Response};
+use axum::{
+    extract::FromRequestParts,
+    http::{header::USER_AGENT, request::Parts},
+    response::{Html, IntoResponse, Response}
+};
 use base64::Engine;
 use minify_html::Cfg;
 use rand::prelude::SliceRandom;
 use rustrict::{Censor, Type};
 use sqlx::FromRow;
-use std::cell::LazyCell;
-use std::convert::Infallible;
-use std::net::IpAddr;
+use std::{cell::LazyCell, convert::Infallible, net::IpAddr};
 use tracing::warn;
 
 #[derive(Debug)]
@@ -58,7 +57,7 @@ impl<S> FromRequestParts<S> for ClientIp {
 
                     #[cfg(debug_assertions)]
                     IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))
-                }),
+                })
         ))
     }
 }
@@ -79,7 +78,7 @@ const MINIFY_CFG: Cfg = Cfg {
     minify_css: true,
     minify_js: true,
     remove_bangs: true,
-    remove_processing_instructions: true,
+    remove_processing_instructions: true
 };
 
 impl<H: Template> IntoResponse for MinifiedHtml<H> {
@@ -96,7 +95,7 @@ pub struct MaybeUserAgent(pub Option<String>);
 #[axum::async_trait]
 impl<S> FromRequestParts<S> for MaybeUserAgent
 where
-    S: Send + Sync,
+    S: Send + Sync
 {
     type Rejection = Infallible;
 
@@ -106,7 +105,7 @@ where
                 .headers
                 .get(USER_AGENT)
                 .and_then(|ua| ua.to_str().ok())
-                .map(ammonia::clean),
+                .map(ammonia::clean)
         ))
     }
 }
@@ -116,7 +115,7 @@ pub struct MessageAndIvFromHeaders(pub Vec<u8>, pub Vec<u8>);
 #[axum::async_trait]
 impl<S> FromRequestParts<S> for MessageAndIvFromHeaders
 where
-    S: Send + Sync,
+    S: Send + Sync
 {
     type Rejection = WE;
 
@@ -154,7 +153,7 @@ where
 pub struct ExistingMessages {
     pub total_count: i64,
     pub flagged_count: i64,
-    pub last_message_content: Option<String>,
+    pub last_message_content: Option<String>
 }
 
 impl ExistingMessages {

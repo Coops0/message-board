@@ -1,11 +1,14 @@
-use crate::util::WE;
-use crate::AppState;
+use crate::{util::WE, AppState};
 use anyhow::anyhow;
-use axum::extract::FromRequestParts;
-use axum::http::header::{COOKIE, SET_COOKIE};
-use axum::http::request::Parts;
-use axum::response::{IntoResponse, Redirect, Response};
-use axum::RequestPartsExt;
+use axum::{
+    extract::FromRequestParts,
+    http::{
+        header::{COOKIE, SET_COOKIE},
+        request::Parts
+    },
+    response::{IntoResponse, Redirect, Response},
+    RequestPartsExt
+};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -29,7 +32,7 @@ pub struct User {
     pub user_agent: Option<String>,
 
     pub banned: bool,
-    pub created_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>
 }
 
 impl User {
@@ -70,7 +73,7 @@ impl<S> FromRequestParts<S> for MaybeLocalUserId {
                 .and_then(|cookies| cookies.to_str().ok())
                 .and_then(|cookies| cookies.split_once("__cf="))
                 .and_then(|(_, uuid_and_end)| uuid_and_end.split(';').next())
-                .and_then(|uuid| Uuid::parse_str(uuid).ok()),
+                .and_then(|uuid| Uuid::parse_str(uuid).ok())
         ))
     }
 }
@@ -81,7 +84,7 @@ impl FromRequestParts<AppState> for User {
 
     async fn from_request_parts(
         parts: &mut Parts,
-        AppState { pool, .. }: &AppState,
+        AppState { pool, .. }: &AppState
     ) -> Result<Self, Self::Rejection> {
         let Ok(MaybeLocalUserId(Some(local_user_id))) = parts.extract::<MaybeLocalUserId>().await
         else {

@@ -1,13 +1,13 @@
-use crate::messages::FullMessage;
-use crate::user::User;
-use crate::util::WR;
-use crate::ws::WebsocketActorMessage;
-use crate::{fallback, AppState};
-use axum::extract::{Path, Request, State};
-use axum::middleware::{from_fn_with_state, Next};
-use axum::response::Response;
-use axum::routing::{get, patch};
-use axum::{Json, RequestExt, Router};
+use crate::{
+    fallback, messages::FullMessage, user::User, util::WR, ws::WebsocketActorMessage, AppState
+};
+use axum::{
+    extract::{Path, Request, State},
+    middleware::{from_fn_with_state, Next},
+    response::Response,
+    routing::{get, patch},
+    Json, RequestExt, Router
+};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ pub fn admin_controller(state: AppState) -> Router<AppState> {
 async fn verify_admin_layer(
     State(state): State<AppState>,
     mut request: Request,
-    next: Next,
+    next: Next
 ) -> Response {
     let user = request
         .extract_parts_with_state::<User, AppState>(&state)
@@ -38,7 +38,7 @@ async fn verify_admin_layer(
 
 async fn get_user(
     State(AppState { pool, .. }): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<Uuid>
 ) -> WR<Json<Option<User>>> {
     sqlx::query_as!(
         User,
@@ -55,13 +55,13 @@ async fn get_user(
 #[derive(Deserialize)]
 struct PatchUserPayload {
     #[serde(default)]
-    banned: Option<bool>,
+    banned: Option<bool>
 }
 
 async fn update_user(
     State(AppState { pool, .. }): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<PatchUserPayload>,
+    Json(payload): Json<PatchUserPayload>
 ) -> WR<Json<User>> {
     sqlx::query_as!(
         User,
@@ -86,13 +86,13 @@ struct PatchMessagePayload {
     #[serde(default)]
     pub flagged: Option<bool>,
     #[serde(default)]
-    pub published: Option<bool>,
+    pub published: Option<bool>
 }
 
 async fn update_message(
     State(AppState { pool, tx }): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(payload): Json<PatchMessagePayload>,
+    Json(payload): Json<PatchMessagePayload>
 ) -> WR<Json<FullMessage>> {
     let updated_message = sqlx::query_as!(
         FullMessage,
@@ -113,7 +113,7 @@ async fn update_message(
     let _ = tx
         .send(WebsocketActorMessage::Message {
             message: updated_message.clone(),
-            is_update: true,
+            is_update: true
         })
         .await;
 

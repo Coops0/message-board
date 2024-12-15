@@ -1,25 +1,28 @@
-use crate::messages::FullMessage;
-use crate::user::User;
-use crate::{fallback, AppState};
-use axum::extract::ws::{Message, WebSocket};
-use axum::extract::{State, WebSocketUpgrade};
-use axum::response::Response;
-use cbc::cipher::block_padding::Pkcs7;
-use cbc::cipher::{BlockEncryptMut, KeyIvInit};
-use cbc::Encryptor;
-use std::future::Future;
-use std::io;
-use std::pin::Pin;
+use crate::{fallback, messages::FullMessage, user::User, AppState};
+use axum::{
+    extract::{
+        ws::{Message, WebSocket},
+        State, WebSocketUpgrade
+    },
+    response::Response
+};
+use cbc::{
+    cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit},
+    Encryptor
+};
+use std::{future::Future, io, pin::Pin};
 use tokio::sync::mpsc::Receiver;
-use tokio_util::bytes::{BufMut, BytesMut};
-use tokio_util::codec::Encoder;
+use tokio_util::{
+    bytes::{BufMut, BytesMut},
+    codec::Encoder
+};
 use uuid::Uuid;
 
 #[allow(clippy::unused_async)]
 pub async fn ws_route(
     maybe_ws: Option<WebSocketUpgrade>,
     owner: User,
-    State(AppState { tx, .. }): State<AppState>,
+    State(AppState { tx, .. }): State<AppState>
 ) -> Response {
     let Some(ws) = maybe_ws else {
         return fallback().await;
@@ -35,12 +38,12 @@ pub async fn ws_route(
 pub enum WebsocketActorMessage {
     Socket {
         socket: WebSocket,
-        owner: User,
+        owner: User
     },
     Message {
         message: FullMessage,
-        is_update: bool,
-    },
+        is_update: bool
+    }
 }
 
 type SendMessageFuture<'a> =
@@ -84,7 +87,7 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
 
 struct MessageEncoder {
     encryptor: Encryptor<aes::Aes128>,
-    iv: [u8; 16],
+    iv: [u8; 16]
 }
 
 impl MessageEncoder {
@@ -160,7 +163,7 @@ impl FullMessage {
         &self,
         encoder: &mut MessageEncoder,
         user: &User,
-        is_update: bool,
+        is_update: bool
     ) -> Option<Message> {
         if user.admin {
             return if is_update {

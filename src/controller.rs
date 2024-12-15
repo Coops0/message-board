@@ -1,22 +1,24 @@
-use crate::messages::{FullMessage, StandardMessage};
-use crate::user::{inject_uuid_cookie, MaybeLocalUserId, User};
-use crate::util::{ExistingMessages, MaybeUserAgent, MessageAndIvFromHeaders};
-use crate::ws::WebsocketActorMessage;
 use crate::{
-    util::generate_code,
-    util::{ClientIp, MinifiedHtml, WR},
-    AppState,
+    messages::{FullMessage, StandardMessage},
+    user::{inject_uuid_cookie, MaybeLocalUserId, User},
+    util::{
+        generate_code, ClientIp, ExistingMessages, MaybeUserAgent, MessageAndIvFromHeaders,
+        MinifiedHtml, WR
+    },
+    ws::WebsocketActorMessage,
+    AppState
 };
 use aes::cipher::block_padding::Pkcs7;
 use askama::Template;
-use axum::response::Html;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::Response,
+    response::{Html, Response}
 };
-use cbc::cipher::{BlockDecryptMut, KeyIvInit};
-use cbc::Decryptor;
+use cbc::{
+    cipher::{BlockDecryptMut, KeyIvInit},
+    Decryptor
+};
 use sqlx::PgPool;
 use std::net::IpAddr;
 use tokio::task;
@@ -25,7 +27,7 @@ use tokio::task;
 #[template(path = "user-messages.askama.html")]
 pub struct UserMessagesPageTemplate {
     messages: Vec<StandardMessage>,
-    user_id_encoded: String,
+    user_id_encoded: String
 }
 
 pub async fn user_referred_index(
@@ -34,7 +36,7 @@ pub async fn user_referred_index(
     maybe_local_user_id: MaybeLocalUserId,
     user: Option<User>,
     ClientIp(ip): ClientIp,
-    maybe_user_agent: MaybeUserAgent,
+    maybe_user_agent: MaybeUserAgent
 ) -> WR<Response> {
     match user {
         Some(user) => handle_existing_user(&pool, user, referral_code).await,
@@ -44,7 +46,7 @@ pub async fn user_referred_index(
                 maybe_local_user_id,
                 ip,
                 maybe_user_agent,
-                referral_code,
+                referral_code
             )
             .await
         }
@@ -58,7 +60,7 @@ pub async fn location_referred_index(
     local_user_id: MaybeLocalUserId,
     user: Option<User>,
     ClientIp(ip): ClientIp,
-    MaybeUserAgent(maybe_user_agent): MaybeUserAgent,
+    MaybeUserAgent(maybe_user_agent): MaybeUserAgent
 ) -> WR<Response> {
     if let Some(user) = user {
         return Ok(inject_uuid_cookie(user.user_referral_redirect(), &user));
@@ -92,7 +94,7 @@ pub async fn location_referred_index(
 async fn handle_existing_user(
     pool: &PgPool,
     user: User,
-    referral_code: String,
+    referral_code: String
 ) -> anyhow::Result<Response> {
     if user.code != referral_code {
         return Ok(inject_uuid_cookie(user.user_referral_redirect(), &user));
@@ -114,7 +116,7 @@ async fn handle_existing_user(
 
         let page_template = UserMessagesPageTemplate {
             messages,
-            user_id_encoded: user.encoded_id(),
+            user_id_encoded: user.encoded_id()
         };
 
         return Ok(inject_uuid_cookie(MinifiedHtml(page_template), &user));
@@ -136,7 +138,7 @@ async fn handle_existing_user(
         .replace("'{{ USER_ID }}'", &user.id.to_string())
         .replace(
             "'{{ VUE_GLOBAL_SCRIPT }}'",
-            include_str!("../assets/vue.global.prod.js"),
+            include_str!("../assets/vue.global.prod.js")
         )
         .replace("'{{ TAILWIND_STYLES }}'", include_str!("../assets/ts.css"));
 
@@ -148,7 +150,7 @@ async fn handle_new_user(
     maybe_local_user_id: MaybeLocalUserId,
     ip: IpAddr,
     MaybeUserAgent(maybe_user_agent): MaybeUserAgent,
-    referral_code: String,
+    referral_code: String
 ) -> anyhow::Result<Response> {
     let referrer_user = sqlx::query_as!(
         User,
@@ -158,13 +160,16 @@ async fn handle_new_user(
     .fetch_one(pool)
     .await?;
 
+    let local_user_id = maybe_local_user_id.make();
+    let new_user_code = generate_code();
+
     let user = sqlx::query_as!(
         User,
         "INSERT INTO users (id, code, user_referral, ip, user_agent, banned)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *",
-        maybe_local_user_id.make(),
-        generate_code(),
+        local_user_id,
+        new_user_code,
         referrer_user.id,
         ip.to_string(),
         maybe_user_agent.as_deref(),
@@ -179,7 +184,7 @@ async fn handle_new_user(
 pub async fn create_message(
     State(AppState { pool, tx }): State<AppState>,
     user: User,
-    header_content: Option<MessageAndIvFromHeaders>,
+    header_content: Option<MessageAndIvFromHeaders>
 ) -> StatusCode {
     task::spawn(async move {
         if user.banned {
@@ -192,7 +197,7 @@ pub async fn create_message(
 
         let decryptor = Decryptor::<aes::Aes128>::new(
             user.encryption_key().as_slice().into(),
-            iv.as_slice().into(),
+            iv.as_slice().into()
         );
 
         // first & last 8 bytes are noise
@@ -247,7 +252,7 @@ pub async fn create_message(
 
         tx.send(WebsocketActorMessage::Message {
             message: full_message,
-            is_update: false,
+            is_update: false
         })
         .await
         .expect("failed to send message");

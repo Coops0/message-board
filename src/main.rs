@@ -5,28 +5,32 @@ mod user;
 mod util;
 mod ws;
 
-use crate::user::{inject_uuid_cookie, User};
-use crate::util::WebErrorExtensionMarker;
-use crate::ws::WebsocketActorMessage;
-use axum::extract::{Request, State};
-use axum::http::header::WWW_AUTHENTICATE;
-use axum::http::StatusCode;
-use axum::middleware::{from_fn_with_state, Next};
-use axum::response::{IntoResponse, Response};
-use axum::routing::get;
-use axum::{RequestExt, Router};
-use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-use sqlx::PgPool;
+use crate::{
+    user::{inject_uuid_cookie, User},
+    util::WebErrorExtensionMarker,
+    ws::WebsocketActorMessage
+};
+use axum::{
+    extract::{Request, State},
+    http::{header::WWW_AUTHENTICATE, StatusCode},
+    middleware::{from_fn_with_state, Next},
+    response::{IntoResponse, Response},
+    routing::get,
+    RequestExt, Router
+};
+use sqlx::{
+    postgres::{PgConnectOptions, PgPoolOptions},
+    PgPool
+};
 use std::env;
 use tokio::sync::mpsc::Sender;
-use tracing::level_filters::LevelFilter;
-use tracing::{info, warn};
+use tracing::{info, level_filters::LevelFilter, warn};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Clone)]
 pub struct AppState {
     pool: PgPool,
-    tx: Sender<WebsocketActorMessage>,
+    tx: Sender<WebsocketActorMessage>
 }
 
 #[tokio::main]
@@ -67,12 +71,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/-", get(ws::ws_route))
         .nest(
             "/admin",
-            admin_controller::admin_controller(AppState::clone(&state)),
+            admin_controller::admin_controller(AppState::clone(&state))
         )
         .fallback(inner_fallback)
         .layer(from_fn_with_state(
             AppState::clone(&state),
-            intercept_web_error,
+            intercept_web_error
         ))
         .with_state(state);
 
@@ -89,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
 async fn inner_fallback(user: Option<User>) -> Response {
     match user {
         Some(user) => inject_uuid_cookie(user.user_referral_redirect(), &user),
-        None => fallback().await,
+        None => fallback().await
     }
 }
 
@@ -107,7 +111,7 @@ pub async fn fallback() -> Response {
 async fn intercept_web_error(
     State(state): State<AppState>,
     mut request: Request,
-    next: Next,
+    next: Next
 ) -> Response {
     let maybe_user = request
         .extract_parts_with_state::<User, AppState>(&state)

@@ -8,7 +8,7 @@ pub struct StandardMessage {
     pub id: Uuid,
     pub content: String,
     pub created_at: DateTime<Utc>,
-    pub author: Uuid,
+    pub author: Uuid
 }
 
 #[derive(Serialize, FromRow, Clone)]
@@ -18,5 +18,5 @@ pub struct FullMessage {
     pub author: Uuid,
     pub flagged: bool,
     pub published: bool,
-    pub created_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>
 }
