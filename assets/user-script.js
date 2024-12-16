@@ -155,7 +155,7 @@ class MessagesDecoder {
         return new TextDecoder().decode(decryptedBytes);
     }
 
-    // rm
+    // read message
     async rm() {
         const iv = new Uint8Array(this.v.buffer, this.o, 16);
         this.o += 16;
