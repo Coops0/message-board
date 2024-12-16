@@ -89,7 +89,7 @@
                   </div>
                   <div v-if="authorInfo[message.author]?.banned"
                        class="px-2 py-1 text-xs font-medium bg-purple-500/20 text-purple-300 rounded">
-                    Banned User
+                    Banned
                   </div>
                 </div>
               </div>
@@ -108,7 +108,9 @@
                   {{ message.published ? 'Unpublish' : 'Publish' }}
                 </button>
 
-                <button @click="() => toggleBan(message.author)"
+                <button
+                    v-if="!authorInfo[message.author]?.admin && message.author !== userId"
+                    @click="() => toggleBan(message.author)"
                         :class="[
                           'px-3 py-1.5 rounded text-sm font-medium transition-colors',
                           authorInfo[message.author]?.banned ? 'bg-green-600/30 hover:bg-green-600/50' : 'bg-red-600/30 hover:bg-red-600/50'
@@ -123,10 +125,7 @@
                   Unflag
                 </button>
 
-                <button @click="() => copyMessage(message.content)"
-                        class="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-zinc-700 hover:bg-zinc-600">
-                  Copy
-                </button>
+                <copy-button :content="message.content" />
               </div>
             </div>
           </div>
@@ -152,7 +151,7 @@
 <script>
   const { createApp, ref, onMounted, useTemplateRef } = Vue;
 
-  createApp({
+  const app = createApp({
     setup() {
       const messages = ref('{{ MESSAGES }}' || []);
       const messageInput = ref('');
@@ -341,7 +340,34 @@
         copyMessage
       };
     }
-  }).mount('#app');
+  });
+
+
+  app.component('copy-button', {
+    props: ['content'],
+    template: `
+      <button @click="copy" class="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-zinc-700 hover:bg-zinc-600">
+        {{ showCopied ? 'Copied' : 'Copy' }}
+      </button>
+    `,
+    setup(props) {
+      const showCopied = ref(false);
+
+      const copy = async () => {
+        try {
+          await navigator.clipboard.writeText(props.content);
+          showCopied.value = true;
+          setTimeout(() => showCopied.value = false, 1500);
+        } catch {
+
+        }
+      }
+
+      return { showCopied, copy };
+    }
+  });
+
+  app.mount('#app');
 </script>
 </body>
 </html>
