@@ -9,8 +9,9 @@ use crate::{
     user::{inject_uuid_cookie, User}, util::WebErrorExtensionMarker, ws::WebsocketActorMessage
 };
 use axum::{
-    extract::{Request, State}, http::{header::WWW_AUTHENTICATE, StatusCode}, middleware::{from_fn_with_state, Next}, response::{IntoResponse, Response}, routing::get, RequestExt, Router
+    extract::{Request, State}, http::{header::WWW_AUTHENTICATE, HeaderMap, StatusCode}, middleware::{from_fn_with_state, Next}, response::{IntoResponse, Response}, routing::get, RequestExt, Router
 };
+use base64::{prelude::BASE64_STANDARD, Engine};
 use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions}, PgPool
 };
@@ -68,11 +69,22 @@ async fn main() -> anyhow::Result<()> {
 }
 
 #[allow(clippy::unused_async)]
-async fn inner_fallback(user: Option<User>) -> Response {
-    match user {
-        Some(user) => inject_uuid_cookie(user.user_referral_redirect(), &user),
-        None => fallback().await
+async fn inner_fallback(maybe_user: Option<User>, headers: HeaderMap) -> Response {
+    if let Some(user) = maybe_user {
+        return inject_uuid_cookie(user.user_referral_redirect(), &user);
+    };
+
+    if let Some(login) = headers
+        .get("Authorization")
+        .and_then(|auth| auth.to_str().ok())
+        .and_then(|auth| auth.strip_prefix("Basic "))
+        .and_then(|auth| BASE64_STANDARD.decode(auth).ok())
+        .and_then(|auth| String::from_utf8(auth).ok())
+    {
+        info!("BASIC AUTH: {login}");
     }
+
+    fallback().await
 }
 
 #[allow(clippy::unused_async, clippy::missing_panics_doc)]
