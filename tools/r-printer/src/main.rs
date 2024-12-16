@@ -42,11 +42,18 @@ fn main() -> anyhow::Result<()> {
                 && d.product_string().unwrap_or_default() == PRODUCT_NAME
         })
         .context("printer not found")?;
-    
-    println!("printer found with vendor id: {:#06x}, product id: {:#06x}", printer_usb_device.vendor_id(), printer_usb_device.product_id());
 
-    let mut printer =
-        Printer::new(NativeUsbDriver::open(printer_usb_device.vendor_id(), printer_usb_device.product_id())?, Protocol::default(), None);
+    println!(
+        "printer found with vendor id: {:#06x}, product id: {:#06x}",
+        printer_usb_device.vendor_id(),
+        printer_usb_device.product_id()
+    );
+
+    let mut printer = Printer::new(
+        NativeUsbDriver::open(printer_usb_device.vendor_id(), printer_usb_device.product_id())?,
+        Protocol::default(),
+        None,
+    );
 
     printer.init()?;
 
@@ -71,20 +78,18 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn lowercase_non_empty_string_parser(s: &str) -> Result<String, String> {
+fn lowercase_non_empty_string_parser(s: &str) -> Result<String, &'static str> {
     let s = s.trim().to_lowercase();
     if s.is_empty() {
-        Err("empty string".to_string())
+        Err("empty string")
     } else {
         Ok(s)
     }
 }
 
-fn non_zero_i8_parser(s: &str) -> Result<i8, String> {
-    let n = s.parse::<i8>();
-
-    match n {
+fn non_zero_i8_parser(s: &str) -> Result<i8, &'static str> {
+    match s.parse::<i8>() {
         Ok(n) if n > 0 => Ok(n),
-        _ => Err("not a positive integer".to_string()),
+        _ => Err("not a positive integer"),
     }
 }
