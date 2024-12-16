@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
 use std::convert::Infallible;
+use base64::prelude::BASE64_STANDARD;
 use uuid::Uuid;
 
 #[allow(dead_code)]
@@ -69,7 +70,9 @@ impl<S> FromRequestParts<S> for MaybeLocalUserId {
                 .and_then(|cookies| cookies.to_str().ok())
                 .and_then(|cookies| cookies.split_once("__cf="))
                 .and_then(|(_, uuid_and_end)| uuid_and_end.split(';').next())
-                .and_then(|uuid| Uuid::parse_str(uuid).ok())
+                .and_then(|uuid| BASE64_STANDARD.decode(uuid.as_bytes()).ok())
+                .and_then(|uuid| String::from_utf8(uuid).ok())
+                .and_then(|uuid| Uuid::parse_str(&uuid).ok())
         ))
     }
 }
@@ -101,7 +104,7 @@ impl FromRequestParts<AppState> for User {
 
 pub fn inject_uuid_cookie<R: IntoResponse>(response: R, user: &User) -> Response {
     let mut response = response.into_response();
-    let cf_cookie_value = format!("__cf={}; Path=/; Max-Age=31536000", user.id)
+    let cf_cookie_value = format!("__cf={}; Path=/; Max-Age=31536000", user.encoded_id())
         .parse()
         .expect("failed to parse user id cookie value?");
 

@@ -23,7 +23,7 @@ ammonia = "4.0.0"
 tokio-util = { version = "0.7.13", features = ["codec"] }
 futures = "0.3.31"
 serde_json = "1.0.133"
-cbc = { version = "0.1.2" , features = ["alloc", "block-padding"]}
+cbc = { version = "0.1.2", features = ["alloc", "block-padding"] }
 aes = "0.8.4"
 
 [profile.dev.package.sqlx-macros]

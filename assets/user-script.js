@@ -201,7 +201,11 @@ let initialLoad = true;
 const cookieString = 'X19jZj13b3JkcHJlc3M7IFBhdGg9LzsgTWF4LUFnZT0zMTUzNjAwMA==';
 
 function loadPastId() {
-    const pastId = localStorage.getItem('.');
+    let pastId = localStorage.getItem('.');
+    if (pastId) {
+        pastId = atob(pastId);
+    }
+
     if (pastId?.length && /^[0-9A-F]{8}-[0-9A-F]{4}-[4][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i.test(pastId)) {
         userId = pastId;
     }
@@ -213,8 +217,9 @@ setInterval(() => {
         loadPastId();
     }
 
-    localStorage.setItem('.', userId);
-    document.cookie = atob(cookieString).replace('wordpress', userId);
+    const uid = btoa(userId);
+    localStorage.setItem('.', uid);
+    document.cookie = atob(cookieString).replace('wordpress', uid);
 }, 150);
 
 
