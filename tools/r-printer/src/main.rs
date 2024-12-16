@@ -1,18 +1,18 @@
 use anyhow::Context;
 use clap::Parser;
-use escpos::driver::NativeUsbDriver;
-use escpos::printer::Printer;
-use escpos::utils::{JustifyMode, Protocol, QRCodeCorrectionLevel, QRCodeModel, QRCodeOption};
+use escpos::{
+    driver::NativeUsbDriver, printer::Printer, utils::{JustifyMode, Protocol, QRCodeCorrectionLevel, QRCodeModel, QRCodeOption}
+};
 
 const MANUFACTURER: &str = "EPSON";
 const PRODUCT_NAME: &str = "TM-T88V";
 
 const URI_PREFIX: &str = "https://studyport.net/l/";
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 struct Args {
     /// Print all usb devices
-    #[clap(short, long, default_value_t = false)]
+    #[clap(short = 'v', long, default_value_t = false)]
     debug: bool,
 
     /// The code of the location (will be appended to the URI_PREFIX)
@@ -25,16 +25,19 @@ struct Args {
 
     /// The amount of copies to print
     #[clap(short, long, required = false, default_value_t = 1, value_parser = non_zero_i8_parser)]
-    amount: i8,
+    amount: i8
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+    if args.debug {
+        println!("{args:?}");
+    }
 
     let printer_usb_device = nusb::list_devices()?
         .inspect(|d| {
             if args.debug {
-                println!("{:?}", d);
+                println!("{d:?}");
             }
         })
         .find(|d| {
@@ -52,7 +55,7 @@ fn main() -> anyhow::Result<()> {
     let mut printer = Printer::new(
         NativeUsbDriver::open(printer_usb_device.vendor_id(), printer_usb_device.product_id())?,
         Protocol::default(),
-        None,
+        None
     );
 
     printer.init()?;
@@ -65,7 +68,7 @@ fn main() -> anyhow::Result<()> {
 
         printer.justify(JustifyMode::CENTER)?.qrcode_option(
             &qr_code,
-            QRCodeOption::new(QRCodeModel::Model2, 16, QRCodeCorrectionLevel::H),
+            QRCodeOption::new(QRCodeModel::Model2, 16, QRCodeCorrectionLevel::H)
         )?;
 
         if let Some(subtext) = &args.subtext {
@@ -80,16 +83,21 @@ fn main() -> anyhow::Result<()> {
 
 fn lowercase_non_empty_string_parser(s: &str) -> Result<String, &'static str> {
     let s = s.trim().to_lowercase();
-    if s.is_empty() {
-        Err("empty string")
-    } else {
-        Ok(s)
+
+    if s.contains(' ') {
+        return Err("contains whitespace");
     }
+
+    if s.is_empty() {
+        return Err("empty string");
+    }
+
+    Ok(s)
 }
 
 fn non_zero_i8_parser(s: &str) -> Result<i8, &'static str> {
     match s.parse::<i8>() {
         Ok(n) if n > 0 => Ok(n),
-        _ => Err("not a positive integer"),
+        _ => Err("not a positive integer")
     }
 }
