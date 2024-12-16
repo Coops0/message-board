@@ -30,27 +30,28 @@ async function getEncryptionKey() {
 
 function createPost(content, createdAt, author, id) {
     const color = colorByUuid(author);
-
     const post = document.createElement('div');
+
     if (id) {
         post.dataset['p'] = id;
     }
 
-    post.className = 'group transition-all duration-300 opacity-0 transform translate-y-4';
+    post.className = 'group transition-all duration-300 opacity-0 transform translate-y-4 hover:translate-x-1';
 
     const messageContainer = document.createElement('div');
-    messageContainer.className = 'p-4 rounded-lg bg-slate-800/50 backdrop-blur border border-slate-700/30 hover:border-slate-600/50 transition-all duration-150 shadow-lg hover:shadow-slate-900/50 break-words';
+    messageContainer.className = 'p-6 rounded-lg bg-slate-800/40 backdrop-blur border border-slate-700/30 hover:border-slate-600/50 transition-all duration-300 shadow-lg hover:shadow-slate-900/50 hover:bg-slate-800/60';
+    messageContainer.style.animation = 'glow 4s ease-in-out infinite';
 
     const parser = new DOMParser();
     const doc = parser.parseFromString(content, 'text/html');
 
     const messageContent = document.createElement('p');
-    messageContent.className = 'leading-relaxed whitespace-pre-wrap break-all';
+    messageContent.className = 'leading-relaxed whitespace-pre-wrap break-words text-zinc-100/90';
     messageContent.style.color = color;
     messageContent.textContent = doc.documentElement.innerText;
 
     const hoverLine = document.createElement('div');
-    hoverLine.className = 'h-px w-0 group-hover:w-full bg-gradient-to-r from-transparent via-slate-500/50 to-transparent transition-all duration-500 mt-1';
+    hoverLine.className = 'h-0.5 w-0 group-hover:w-full bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent transition-all duration-500 mt-2';
 
     messageContainer.appendChild(messageContent);
     post.appendChild(messageContainer);
@@ -60,6 +61,7 @@ function createPost(content, createdAt, author, id) {
 
     requestAnimationFrame(() => {
         post.classList.remove('opacity-0', 'translate-y-4');
+        post.style.animation = 'float 3s ease-in-out infinite';
         post.scrollIntoView({ behavior: 'smooth' });
     });
 }
@@ -225,5 +227,7 @@ setTimeout(() => {
     for (const message of messages) {
         const author = message.dataset['b'];
         message.style.color = colorByUuid(author);
+        message.style.animation = 'glow 4s ease-in-out infinite';
+        message.parentElement.style.animation = 'float 3s ease-in-out infinite';
     }
 });
