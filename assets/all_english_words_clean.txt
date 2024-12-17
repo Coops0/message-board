@@ -712,23 +712,6 @@ aborn
 aborning
 aborsement
 aborsive
-abort
-aborted
-aborter
-aborters
-aborticide
-abortient
-abortin
-aborting
-abortional
-abortionist
-abortions
-abortive
-abortively
-abortogenic
-aborts
-abortus
-abortuses
 abote
 abott
 abouchement
@@ -4771,16 +4754,6 @@ afresca
 afresh
 afret
 afrete
-afric
-africah
-africana
-africander
-africanism
-africanist
-africanize
-africanized
-africanoid
-africans
 afridi
 afright
 afrika
@@ -20376,7 +20349,6 @@ auspicial
 auspicious
 aussie
 aussies
-austafrican
 austausch
 austell
 austemper
@@ -92877,8 +92849,6 @@ euprepia
 euproctis
 eupsychics
 euptelea
-eurafric
-eurafrican
 euramerican
 euraquilo
 eurasia
@@ -122001,7 +121971,6 @@ hemiopic
 hemiopsia
 hemiparesis
 hemiparetic
-hemipenis
 hemipeptone
 hemiphrase
 hemipic
@@ -163781,7 +163750,6 @@ megalomanic
 megalomelia
 megalonyx
 megalopa
-megalopenis
 megalopia
 megalopic
 megalopidae
@@ -166924,7 +166892,6 @@ micronesian
 micronize
 microns
 micronuclei
-micropenis
 microphage
 microphagy
 microphakia
@@ -180029,7 +179996,6 @@ nonabatable
 nonabiding
 nonability
 nonabjurer
-nonabortive
 nonabrasive
 nonabsolute
 nonabstract
@@ -199193,7 +199159,6 @@ peninsular
 peninsulas
 peninsulate
 penintime
-penistone
 penitas
 penitence
 penitencer
@@ -210189,7 +210154,6 @@ possums
 possumwood
 postabdomen
 postable
-postabortal
 postact
 postadjunct
 postage
@@ -214690,7 +214654,6 @@ prizewinner
 prizeworthy
 prizing
 prlate
-proabortion
 proacademic
 proach
 proacting
@@ -277505,7 +277468,6 @@ topotypes
 topotypic
 topotypical
 topped
-toppenish
 topper
 toppers
 toppy
@@ -284063,8 +284025,6 @@ unableness
 unably
 unabnegated
 unabolished
-unaborted
-unabortive
 unabraded
 unabrased
 unabrasive
