@@ -88,7 +88,9 @@
                        class="px-2 py-1 text-xs font-medium bg-purple-500/20 text-purple-300 rounded">
                     Banned
                   </div>
-                  <div v-if="'score' in message" class="px-2 py-1 text-xs font-medium bg-zinc-700/50 text-zinc-300 rounded">{{ message.score }}</div>
+                  <div v-if="'score' in message"
+                       class="px-2 py-1 text-xs font-medium bg-zinc-700/50 text-zinc-300 rounded">{{ message.score }}
+                  </div>
                 </div>
               </div>
 
