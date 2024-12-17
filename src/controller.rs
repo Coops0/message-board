@@ -50,6 +50,8 @@ pub async fn location_referred_index(
     if let Some(user) = user {
         return Ok(inject_uuid_cookie(user.user_referral_redirect(), &user));
     }
+    
+    let location_code = location_code.to_lowercase();
 
     let found_location_code = sqlx::query_scalar!(
         // language=postgresql
