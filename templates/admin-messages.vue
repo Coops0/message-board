@@ -16,6 +16,7 @@
             <h1 class="text-lg font-semibold">MSGBOARD</h1>
             <div class="h-4 w-px bg-zinc-700"></div>
             <div class="flex gap-4 text-sm">
+              <span class="text-zinc-400" v-if="currentlyOnlineUsers !== -1">Online: {{ currentlyOnlineUsers }}</span>
               <span class="text-zinc-400">Messages: {{ messages.length }}</span>
               <span class="text-red-400">Flagged: {{ messages.filter(m => m.flagged).length }}</span>
               <span class="text-yellow-400">Unpublished: {{
@@ -111,7 +112,7 @@
                 <button
                     v-if="!authorInfo[message.author]?.admin && message.author !== userId"
                     @click="() => toggleBan(message.author)"
-                        :class="[
+                    :class="[
                           'px-3 py-1.5 rounded text-sm font-medium transition-colors',
                           authorInfo[message.author]?.banned ? 'bg-green-600/30 hover:bg-green-600/50' : 'bg-red-600/30 hover:bg-red-600/50'
                         ]">
@@ -125,7 +126,7 @@
                   Unflag
                 </button>
 
-                <copy-button :content="message.content" />
+                <copy-button :content="message.content"/>
               </div>
             </div>
           </div>
@@ -156,6 +157,8 @@
       const messages = ref('{{ MESSAGES }}' || []);
       const messageInput = ref('');
       const authorInfo = ref({});
+      const currentlyOnlineUsers = ref(-1);
+
       const userId = `'{{ USER_ID }}'`;
 
       const messagesRef = useTemplateRef('messages-ref');
@@ -221,15 +224,21 @@
       const connectWs = () => {
         const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
         ws = new WebSocket(`${protocol}://${location.host}/-`);
-        ws.onmessage = ({ data }) => {
-          if (data.length) {
-            messages.value = [...messages.value, JSON.parse(data)];
-          }
-
-          requestAnimationFrame(() => scroll());
-        };
+        ws.onmessage = onMessage;
         ws.onclose = () => setTimeout(connectWs, 1000);
       };
+
+      function onMessage({ data }) {
+        if (!data.length) return;
+        const payload = JSON.parse(data);
+
+        if ('count' in payload) {
+          currentlyOnlineUsers.value = payload.count;
+        } else {
+          messages.value = [...messages.value, payload];
+          requestAnimationFrame(() => scroll());
+        }
+      }
 
       const getUser = async (id) => {
         const response = await fetch(`/admin/user/${id}`);
@@ -346,7 +355,8 @@
   app.component('copy-button', {
     props: ['content'],
     template: `
-      <button @click="copy" class="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-zinc-700 hover:bg-zinc-600">
+      <button @click="copy"
+              class="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-zinc-700 hover:bg-zinc-600">
         {{ showCopied ? 'Copied' : 'Copy' }}
       </button>
     `,
@@ -361,7 +371,7 @@
         } catch {
 
         }
-      }
+      };
 
       return { showCopied, copy };
     }

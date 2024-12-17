@@ -7,7 +7,10 @@ use axum::{
 use cbc::{
     cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit}, Encryptor
 };
-use std::{future::Future, io, pin::Pin};
+use futures::FutureExt;
+use serde_json::json;
+use sqlx::__rt::timeout;
+use std::{future::Future, io, pin::Pin, time::Duration};
 use tokio::sync::mpsc::Receiver;
 use tokio_util::{
     bytes::{BufMut, BytesMut}, codec::Encoder
@@ -31,46 +34,88 @@ pub async fn ws_route(
 
 pub enum WebsocketActorMessage {
     Socket { socket: WebSocket, owner: User },
-    Message { message: FullMessage, is_update: bool }
+    Message { message: FullMessage, is_update: bool },
+    RequestCount { id: Uuid }
 }
 
-type SendMessageFuture<'a> =
-    Pin<Box<dyn Future<Output = Result<(), (axum::Error, Uuid)>> + Send + 'a>>;
+type SendMessageFuture<'a, E = axum::Error> =
+    Pin<Box<dyn Future<Output = Result<(), E>> + Send + 'a>>;
+
+type BroadcastSendMessageFuture<'a> = SendMessageFuture<'a, (axum::Error, Uuid)>;
 
 pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
     let mut sockets: Vec<(WebSocket, User)> = Vec::new();
 
-    while let Some(msg) = rx.recv().await {
+    loop {
+        let message_or_timeout = timeout(Duration::from_secs(10), rx.recv()).await;
+        let Ok(msg) = message_or_timeout else {
+            prune_dead_sockets(&mut sockets).await;
+            continue;
+        };
+
+        let Some(msg) = msg else { break };
+
         match msg {
             WebsocketActorMessage::Socket { socket, owner } => sockets.push((socket, owner)),
             WebsocketActorMessage::Message { message, is_update } => {
-                let send_futures: Vec<SendMessageFuture> = sockets
-                    .iter_mut()
-                    .filter(|(_, owner)| !owner.id.eq(&message.author))
-                    .filter_map(|(socket, user)| -> Option<SendMessageFuture> {
-                        let mut message_enc = MessageEncoder::new(user.encryption_key());
+                broadcast(&mut sockets, &message, is_update).await;
+            }
+            WebsocketActorMessage::RequestCount { id } => {
+                let len = sockets.len();
+                let Some((socket, _)) = sockets.iter_mut().find(|(_, user)| user.id.eq(&id)) else {
+                    continue;
+                };
 
-                        let ws_msg =
-                            message.encode_message_for(&mut message_enc, user, is_update)?;
-
-                        let fut =
-                            async move { socket.send(ws_msg).await.map_err(|e| (e, user.id)) };
-
-                        Some(Box::pin(fut) as SendMessageFuture)
-                    })
-                    .collect();
-
-                futures::future::join_all(send_futures)
-                    .await
-                    .into_iter()
-                    .filter_map(Result::err)
-                    .for_each(|(_e, id)| {
-                        // remove any dead sockets
-                        sockets.retain(|(_, user)| !user.id.eq(&id));
-                    });
+                let _ = socket.send(Message::Text(json!({"count": len}).to_string())).await;
             }
         }
     }
+}
+
+async fn broadcast(sockets: &mut Vec<(WebSocket, User)>, message: &FullMessage, is_update: bool) {
+    let send_futures: Vec<BroadcastSendMessageFuture> = sockets
+        .iter_mut()
+        .filter(|(_, owner)| !owner.id.eq(&message.author))
+        .filter_map(|(socket, user)| -> Option<BroadcastSendMessageFuture> {
+            let mut message_enc = MessageEncoder::new(user.encryption_key());
+
+            let ws_msg = message.encode_message_for(&mut message_enc, user, is_update)?;
+
+            let fut = async move { socket.send(ws_msg).await.map_err(|e| (e, user.id)) };
+            Some(Box::pin(fut) as BroadcastSendMessageFuture)
+        })
+        .collect();
+
+    futures::future::join_all(send_futures).await.into_iter().filter_map(Result::err).for_each(
+        |(_e, id)| {
+            // remove any dead sockets
+            sockets.retain(|(_, user)| !user.id.eq(&id));
+        }
+    );
+}
+
+async fn prune_dead_sockets(sockets: &mut Vec<(WebSocket, User)>) {
+    sockets.retain_mut(|(socket, _)| match socket.recv().now_or_never() {
+        // No immediate future response - PASS
+        // Immediate future response WITH content - PASS
+        None | Some(Some(_)) => true,
+        // Immediate future response WITH NONE, no content - FAIL
+        _ => false
+    });
+
+    // new count, update admins
+    let len = sockets.len();
+    let send_futures = sockets
+        .iter_mut()
+        .filter(|(_, user)| user.admin)
+        .map(|(socket, _)| {
+            Box::pin(
+                async move { socket.send(Message::Text(json!({"count": len}).to_string())).await }
+            ) as SendMessageFuture
+        })
+        .collect::<Vec<_>>();
+
+    let _ = futures::future::join_all(send_futures).await;
 }
 
 struct MessageEncoder {

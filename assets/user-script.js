@@ -39,7 +39,13 @@ function createPost(content, createdAt, author, id) {
     post.className = 'group transition-all duration-300 opacity-0 transform translate-y-4 hover:translate-x-1';
 
     const messageContainer = document.createElement('div');
-    messageContainer.className = 'p-6 rounded-lg bg-slate-800/40 backdrop-blur border border-slate-700/30 hover:border-slate-600/50 transition-all duration-300 shadow-lg hover:shadow-slate-900/50 hover:bg-slate-800/60';
+
+    let messageContainerClasses = 'p-6 rounded-lg bg-slate-800/40 backdrop-blur border border-slate-700/30 hover:border-slate-600/50 transition-all duration-300 shadow-lg hover:shadow-slate-900/50 hover:bg-slate-800/60';
+    if (author === userId) {
+        messageContainerClasses += ' outline-2 outline-white/80';
+    }
+
+    messageContainer.className = messageContainerClasses;
     messageContainer.style.animation = 'glow 4s ease-in-out infinite';
 
     const parser = new DOMParser();
@@ -234,5 +240,9 @@ setTimeout(() => {
         message.style.color = colorByUuid(author);
         message.style.animation = 'glow 4s ease-in-out infinite';
         message.parentElement.style.animation = 'float 3s ease-in-out infinite';
+
+        if (author === userId) {
+            message.parentElement.classList.add('outline-2', 'outline-white/80');
+        }
     }
 });

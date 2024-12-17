@@ -12,8 +12,8 @@ use cbc::{
     cipher::{BlockDecryptMut, KeyIvInit}, Decryptor
 };
 use sqlx::PgPool;
-use std::net::IpAddr;
-use tokio::task;
+use std::{net::IpAddr, time::Duration};
+use tokio::{sync::mpsc::Sender, task, time::sleep};
 
 #[derive(Template)]
 #[template(path = "user-messages.askama.html")]
@@ -23,7 +23,7 @@ pub struct UserMessagesPageTemplate {
 }
 
 pub async fn user_referred_index(
-    State(AppState { pool, .. }): State<AppState>,
+    State(AppState { pool, tx }): State<AppState>,
     Path(referral_code): Path<String>,
     maybe_local_user_id: MaybeLocalUserId,
     user: Option<User>,
@@ -31,7 +31,7 @@ pub async fn user_referred_index(
     maybe_user_agent: MaybeUserAgent
 ) -> WR<Response> {
     match user {
-        Some(user) => handle_existing_user(&pool, user, referral_code).await,
+        Some(user) => handle_existing_user(&pool, tx, user, referral_code).await,
         None => {
             handle_new_user(&pool, maybe_local_user_id, ip, maybe_user_agent, referral_code).await
         }
@@ -50,7 +50,7 @@ pub async fn location_referred_index(
     if let Some(user) = user {
         return Ok(inject_uuid_cookie(user.user_referral_redirect(), &user));
     }
-    
+
     let location_code = location_code.to_lowercase();
 
     let found_location_code = sqlx::query_scalar!(
@@ -63,7 +63,7 @@ pub async fn location_referred_index(
 
     let local_user_id = maybe_local_user_id.make();
     let new_user_code = generate_code();
-    
+
     let user = sqlx::query_as!(
         User,
         "INSERT INTO users (id, code, location_referral, ip, user_agent)
@@ -83,6 +83,7 @@ pub async fn location_referred_index(
 
 async fn handle_existing_user(
     pool: &PgPool,
+    tx: Sender<WebsocketActorMessage>,
     user: User,
     referral_code: String
 ) -> anyhow::Result<Response> {
@@ -126,6 +127,12 @@ async fn handle_existing_user(
         .replace("'{{ USER_ID }}'", &user.id.to_string())
         .replace("'{{ VUE_GLOBAL_SCRIPT }}'", include_str!("../assets/vue.global.prod.js"))
         .replace("'{{ TAILWIND_STYLES }}'", include_str!("../assets/ts.css"));
+
+    task::spawn(async move {
+        // give time for page to load
+        sleep(Duration::from_millis(250)).await;
+        let _ = tx.send(WebsocketActorMessage::RequestCount { id: user.id }).await;
+    });
 
     Ok(inject_uuid_cookie(Html(admin_page), &user))
 }
