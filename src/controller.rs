@@ -127,9 +127,10 @@ async fn handle_existing_user(
         .replace("'{{ VUE_GLOBAL_SCRIPT }}'", include_str!("../assets/vue.global.prod.js"))
         .replace("'{{ TAILWIND_STYLES }}'", include_str!("../assets/ts.css"));
 
-    task::spawn(async move {
+    #[allow(clippy::let_underscore_future)]
+    let _ = task::spawn(async move {
         // give time for page to load
-        sleep(Duration::from_millis(250)).await;
+        sleep(Duration::from_secs(2)).await;
         let _ = tx.send(WebsocketActorMessage::RequestCount { id: user.id }).await;
     });
 

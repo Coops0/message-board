@@ -9,9 +9,9 @@ use cbc::{
 };
 use futures::FutureExt;
 use serde_json::json;
-use sqlx::__rt::timeout;
 use std::{future::Future, io, pin::Pin, time::Duration};
 use tokio::sync::mpsc::Receiver;
+use tokio::time::timeout;
 use tokio_util::{
     bytes::{BufMut, BytesMut}, codec::Encoder
 };
@@ -47,7 +47,7 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
     let mut sockets: Vec<(WebSocket, User)> = Vec::new();
 
     loop {
-        let message_or_timeout = timeout(Duration::from_secs(10), rx.recv()).await;
+        let message_or_timeout = timeout(Duration::from_secs(1), rx.recv()).await;
         let Ok(msg) = message_or_timeout else {
             prune_dead_sockets(&mut sockets).await;
             continue;
@@ -95,6 +95,8 @@ async fn broadcast(sockets: &mut Vec<(WebSocket, User)>, message: &FullMessage, 
 }
 
 async fn prune_dead_sockets(sockets: &mut Vec<(WebSocket, User)>) {
+    let before_len = sockets.len();
+    
     sockets.retain_mut(|(socket, _)| match socket.recv().now_or_never() {
         // No immediate future response - PASS
         // Immediate future response WITH content - PASS
@@ -105,6 +107,10 @@ async fn prune_dead_sockets(sockets: &mut Vec<(WebSocket, User)>) {
 
     // new count, update admins
     let len = sockets.len();
+    if before_len == len {
+        return;
+    }
+    
     let send_futures = sockets
         .iter_mut()
         .filter(|(_, user)| user.admin)

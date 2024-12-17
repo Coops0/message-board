@@ -36,9 +36,9 @@ function createPost(content, createdAt, author, id) {
         post.dataset['p'] = id;
     }
 
-    let postClasses = 'group transition-all duration-300 opacity-0 transform translate-y-4 hover:translate-x-1 rounded-lg';
+    let postClasses = 'group transition-all duration-300 hover:translate-x-1 rounded-lg';
     if (author === userId) {
-        postClasses += ' outline-2 outline-white/60';
+        postClasses += ' ring-2 ring-emerald-500/30';
     }
 
     post.className = postClasses;
@@ -66,11 +66,7 @@ function createPost(content, createdAt, author, id) {
 
     board.appendChild(post);
 
-    requestAnimationFrame(() => {
-        post.classList.remove('opacity-0', 'translate-y-4');
-        post.style.animation = 'float 3s ease-in-out infinite';
-        post.scrollIntoView({ behavior: 'smooth' });
-    });
+    requestAnimationFrame(() => post.scrollIntoView({ behavior: 'smooth' }));
 }
 
 const noise = () => window.crypto.getRandomValues(new Uint8Array(8));
@@ -243,7 +239,7 @@ setTimeout(() => {
         message.parentElement.style.animation = 'float 3s ease-in-out infinite';
 
         if (author === userId) {
-            message.parentElement.classList.add('outline-2', 'outline-white/80');
+            message.parentElement.classList.add('ring-2', 'ring-emerald-500/30');
         }
     }
 });
