@@ -6,8 +6,6 @@ use axum::{
 use base64::Engine;
 use minify_html::Cfg;
 use rand::prelude::SliceRandom;
-use rustrict::{Censor, Type};
-use sqlx::FromRow;
 use std::{cell::LazyCell, convert::Infallible, net::IpAddr};
 use tracing::warn;
 
@@ -135,64 +133,6 @@ where
         }
 
         Ok(Self(content_bytes, iv_bytes))
-    }
-}
-
-#[derive(FromRow, Debug)]
-pub struct ExistingMessages {
-    pub total_count: i64,
-    pub flagged_count: i64,
-    pub last_message_content: Option<String>
-}
-
-impl ExistingMessages {
-    pub async fn fetch_for(pool: &sqlx::PgPool, user: &crate::user::User) -> anyhow::Result<Self> {
-        sqlx::query_as!(
-            ExistingMessages,
-            // language=postgresql
-            r#"WITH last_message AS (
-            SELECT content
-            FROM messages
-            WHERE author = $1
-            ORDER BY created_at DESC
-            LIMIT 1
-        )
-        SELECT
-            COUNT(*) as "total_count!",
-            COUNT(*) FILTER (WHERE flagged AND NOT published) as "flagged_count!",
-            (SELECT content FROM last_message) as last_message_content
-        FROM messages
-        WHERE author = $1"#,
-            user.id
-        )
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    pub fn should_flag_message(&self, content: &str) -> bool {
-        if self.flagged_count > 25 {
-            return true;
-        }
-
-        let profanity_type = Censor::from_str(content).analyze();
-        // info!("profanity type: {:?}", profanity_type);
-
-        profanity_type.is(Type::SEVERE)
-    }
-
-    pub fn should_block_message(&self, content: &str) -> bool {
-        if self.total_count > 400 {
-            return true;
-        }
-
-        if let Some(last_content) = &self.last_message_content {
-            if last_content == content {
-                return true;
-            }
-        }
-
-        false
     }
 }
 

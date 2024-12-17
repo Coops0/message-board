@@ -31,7 +31,7 @@
         <div class="flex-1 px-6 py-6 pb-32" id="messages">
             <div class="messages space-y-6">
                 {% for message in messages %}
-                <div class="group transition-all duration-300 hover:translate-x-1">
+                <div class="group transition-all duration-300 hover:translate-x-1 rounded-lg">
                     <div class="p-6 rounded-lg bg-slate-800/40 backdrop-blur border border-slate-700/30 hover:border-slate-600/50 transition-all duration-300 shadow-lg hover:shadow-slate-900/50 hover:bg-slate-800/60 blonde" data-b="{{ message.author }}" data-p="{{ message.id }}">
                         <p class="leading-relaxed whitespace-pre-wrap break-words">{{ message.content|e }}</p>
                     </div>
@@ -87,12 +87,6 @@
 
     .messages > div > div {
         animation: glow 4s ease-in-out infinite;
-    }
-
-    .bg-grid {
-        background-size: 40px 40px;
-        background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
     }
 </style>
 

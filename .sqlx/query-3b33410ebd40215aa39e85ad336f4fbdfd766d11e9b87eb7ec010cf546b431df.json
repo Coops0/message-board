@@ -20,13 +20,13 @@
       },
       {
         "ordinal": 3,
-        "name": "flagged",
+        "name": "published",
         "type_info": "Bool"
       },
       {
         "ordinal": 4,
-        "name": "published",
-        "type_info": "Bool"
+        "name": "score",
+        "type_info": "Float4"
       },
       {
         "ordinal": 5,

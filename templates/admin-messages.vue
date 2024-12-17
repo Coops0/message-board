@@ -18,7 +18,6 @@
             <div class="flex gap-4 text-sm">
               <span class="text-zinc-400" v-if="currentlyOnlineUsers !== -1">Online: {{ currentlyOnlineUsers }}</span>
               <span class="text-zinc-400">Messages: {{ messages.length }}</span>
-              <span class="text-red-400">Flagged: {{ messages.filter(m => m.flagged).length }}</span>
               <span class="text-yellow-400">Unpublished: {{
                   messages.filter(m => !m.published && !m.self).length
                 }}</span>
@@ -38,7 +37,7 @@
             <div :class="[
               'p-4 rounded-lg border transition-all',
               'bg-zinc-800/80 hover:bg-zinc-800',
-              message.flagged ? 'border-red-500/50' : (message.published ? 'border-green-500/50' : 'border-zinc-700/50'),
+              (message.published ? 'border-green-500/50' : 'border-zinc-700/50'),
               (!message.self && !message.published) ? 'opacity-50' : 'opacity-100'
             ]">
               <div class="flex items-start gap-3">
@@ -81,9 +80,6 @@
                 </div>
 
                 <div class="flex gap-2">
-                  <div v-if="message.flagged" class="px-2 py-1 text-xs font-medium bg-red-500/20 text-red-300 rounded">
-                    Flagged
-                  </div>
                   <div v-if="!message.published && !message.self"
                        class="px-2 py-1 text-xs font-medium bg-yellow-500/20 text-yellow-300 rounded">
                     Unpublished
@@ -92,6 +88,7 @@
                        class="px-2 py-1 text-xs font-medium bg-purple-500/20 text-purple-300 rounded">
                     Banned
                   </div>
+                  <div class="px-2 py-1 text-xs font-medium bg-zinc-700/50 text-zinc-300 rounded">{{ message.score }}</div>
                 </div>
               </div>
 
@@ -118,14 +115,6 @@
                         ]">
                   {{ authorInfo[message.author]?.banned ? 'Unban' : 'Ban' }}
                 </button>
-
-                <button
-                    v-if="message.flagged"
-                    @click="() => toggleFlag(index)"
-                    class="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-yellow-600/30 hover:bg-yellow-600/50">
-                  Unflag
-                </button>
-
                 <copy-button :content="message.content"/>
               </div>
             </div>
@@ -264,16 +253,6 @@
         authorInfo.value[author] = await response.json();
       };
 
-      const toggleFlag = async (index) => {
-        const message = messages.value[index];
-        const response = await fetch(`/admin/message/${message.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ flagged: !message.flagged })
-        });
-        messages.value[index] = await response.json();
-      };
-
       const noise = () => window.crypto.getRandomValues(new Uint8Array(8));
 
       const sendMessage = async () => {
@@ -343,7 +322,6 @@
         getUser,
         togglePublish,
         toggleBan,
-        toggleFlag,
         sendMessage,
         formatRelativeTime,
         copyMessage

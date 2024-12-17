@@ -16,7 +16,7 @@ pub struct FullMessage {
     pub id: Uuid,
     pub content: String,
     pub author: Uuid,
-    pub flagged: bool,
     pub published: bool,
+    pub score: f32,
     pub created_at: DateTime<Utc>
 }

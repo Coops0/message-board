@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE messages\n        SET content = COALESCE($2, content),\n            flagged = COALESCE($3, flagged),\n            published = COALESCE($4, published)\n        WHERE id = $1 RETURNING *",
+  "query": "INSERT INTO messages (content, author, published, score)\n             VALUES ($1, $2, $3, $4) RETURNING *",
   "describe": {
     "columns": [
       {
@@ -20,13 +20,13 @@
       },
       {
         "ordinal": 3,
-        "name": "flagged",
+        "name": "published",
         "type_info": "Bool"
       },
       {
         "ordinal": 4,
-        "name": "published",
-        "type_info": "Bool"
+        "name": "score",
+        "type_info": "Float4"
       },
       {
         "ordinal": 5,
@@ -36,10 +36,10 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
         "Text",
+        "Uuid",
         "Bool",
-        "Bool"
+        "Float4"
       ]
     },
     "nullable": [
@@ -51,5 +51,5 @@
       false
     ]
   },
-  "hash": "61e73c25439ccaf12131edc770c35469d04c50a6d6eb7cd89b57093ec95e2ec3"
+  "hash": "92c383633f2845e554fb3fb6d136505f977c0ba68622775cd780e60001a8433a"
 }

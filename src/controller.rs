@@ -1,7 +1,5 @@
 use crate::{
-    messages::{FullMessage, StandardMessage}, user::{inject_uuid_cookie, MaybeLocalUserId, User}, util::{
-        generate_code, ClientIp, ExistingMessages, MaybeUserAgent, MessageAndIvFromHeaders, MinifiedHtml, WR
-    }, ws::WebsocketActorMessage, AppState
+    censor, censor::{score_content, CensorOutcome}, messages::{FullMessage, StandardMessage}, user::{inject_uuid_cookie, MaybeLocalUserId, User}, util::{generate_code, ClientIp, MaybeUserAgent, MessageAndIvFromHeaders, MinifiedHtml, WR}, ws::WebsocketActorMessage, AppState
 };
 use aes::cipher::block_padding::Pkcs7;
 use askama::Template;
@@ -11,6 +9,7 @@ use axum::{
 use cbc::{
     cipher::{BlockDecryptMut, KeyIvInit}, Decryptor
 };
+use rustrict::Censor;
 use sqlx::PgPool;
 use std::{net::IpAddr, time::Duration};
 use tokio::{sync::mpsc::Sender, task, time::sleep};
@@ -176,10 +175,6 @@ pub async fn create_message(
     header_content: Option<MessageAndIvFromHeaders>
 ) -> StatusCode {
     task::spawn(async move {
-        if user.banned {
-            return;
-        }
-
         let Some(MessageAndIvFromHeaders(encrypted_content_bytes, iv)) = header_content else {
             return;
         };
@@ -211,29 +206,24 @@ pub async fn create_message(
             return;
         }
 
-        let flagged = if user.admin {
-            false
-        } else {
-            let Ok(existing) = ExistingMessages::fetch_for(&pool, &user).await else {
-                return;
-            };
+        let profanity_type = Censor::from_str(&content).analyze();
+        let score = score_content(profanity_type);
 
-            if existing.should_block_message(&content) {
-                return;
-            }
-
-            existing.should_flag_message(&content)
+        let published = match censor::censor(&pool, &user, &content, score, profanity_type).await {
+            CensorOutcome::Allow => true,
+            CensorOutcome::Hide => false,
+            CensorOutcome::Block => return
         };
 
         let full_message = sqlx::query_as!(
             FullMessage,
             // language=postgresql
-            "INSERT INTO messages (content, author, flagged, published)
+            "INSERT INTO messages (content, author, published, score)
              VALUES ($1, $2, $3, $4) RETURNING *",
             content,
             user.id,
-            flagged,
-            !flagged
+            published,
+            score
         )
         .fetch_one(&pool)
         .await

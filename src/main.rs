@@ -4,6 +4,7 @@ mod messages;
 mod user;
 mod util;
 mod ws;
+mod censor;
 
 use crate::{
     user::{inject_uuid_cookie, User}, util::WebErrorExtensionMarker, ws::WebsocketActorMessage

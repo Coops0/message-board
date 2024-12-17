@@ -78,8 +78,6 @@ struct PatchMessagePayload {
     #[serde(default)]
     pub content: Option<String>,
     #[serde(default)]
-    pub flagged: Option<bool>,
-    #[serde(default)]
     pub published: Option<bool>
 }
 
@@ -93,12 +91,10 @@ async fn update_message(
         // language=postgresql
         "UPDATE messages
         SET content = COALESCE($2, content),
-            flagged = COALESCE($3, flagged),
-            published = COALESCE($4, published)
+            published = COALESCE($3, published)
         WHERE id = $1 RETURNING *",
         id,
         payload.content,
-        payload.flagged,
         payload.published
     )
     .fetch_one(&pool)
