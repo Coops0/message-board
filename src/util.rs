@@ -6,7 +6,7 @@ use axum::{
 };
 use base64::Engine;
 use minify_html::Cfg;
-use rand::{prelude::IndexedRandom, rng};
+use rand::prelude::IndexedRandom;
 use std::{cell::LazyCell, convert::Infallible, net::IpAddr};
 use tracing::warn;
 
@@ -106,7 +106,7 @@ impl FromRequestParts<AppState> for MessageAndIvFromHeaders {
 
     async fn from_request_parts(parts: &mut Parts, _: &AppState) -> Result<Self, Self::Rejection> {
         let raw_content_header =
-            parts.headers.get("CF-Cache-Identifier").context("failed to get header")?.as_bytes();
+            parts.headers.get("CF-Cache-Identifier").context("failed to get header")?;
 
         let raw_iv_header = parts
             .headers
@@ -114,8 +114,7 @@ impl FromRequestParts<AppState> for MessageAndIvFromHeaders {
             .and_then(|ua| ua.to_str().ok())
             .and_then(|ua| ua.split_once("Mozilla/5.0 (Windows NT 10.0; Win64; x64; "))
             .and_then(|(_, iv)| iv.split(')').next())
-            .context("failed to get iv")?
-            .as_bytes();
+            .context("failed to get iv")?;
 
         let content_bytes = base64::engine::general_purpose::STANDARD.decode(raw_content_header)?;
         if content_bytes.len() > 1024 {
@@ -135,18 +134,22 @@ const WORDS_STRING_LIST: &str = include_str!("../assets/all_english_words_clean.
 #[allow(clippy::declare_interior_mutable_const)]
 const WORDS_ARRAY: LazyCell<Vec<&str>> = LazyCell::new(|| WORDS_STRING_LIST.lines().collect());
 
+const SEPARATORS: &[char] = &['-', '_', '.'];
+
 pub fn generate_code() -> String {
+    let mut rng = rand::rng();
+
     #[allow(clippy::borrow_interior_mutable_const)]
-    let words = WORDS_ARRAY
-        .choose_multiple(&mut rng(), 2)
-        .map(ToString::to_string)
-        .collect::<Vec<String>>();
+    let words =
+        WORDS_ARRAY.choose_multiple(&mut rng, 2).map(ToString::to_string).collect::<Vec<String>>();
 
     let [first_word, second_word] = &words[..] else {
         unreachable!();
     };
 
-    format!("{first_word}-{second_word}")
+    let separator = SEPARATORS.choose(&mut rng).unwrap();
+
+    format!("{first_word}{separator}{second_word}")
 }
 
 pub struct OptionalExtractor<T>(pub Option<T>);

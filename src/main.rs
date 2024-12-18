@@ -59,6 +59,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/-", any(ws::ws_route))
         .nest("/admin", admin_controller::admin_controller(AppState::clone(&state)))
         .fallback(inner_fallback)
+        .method_not_allowed_fallback(inner_fallback)
         .layer(from_fn_with_state(AppState::clone(&state), intercept_web_error))
         .with_state(state);
 
@@ -80,10 +81,10 @@ async fn inner_fallback(
 
     if let Some(login) = headers
         .get("Authorization")
-        .and_then(|auth| auth.to_str().ok())
-        .and_then(|auth| auth.strip_prefix("Basic "))
-        .and_then(|auth| BASE64_STANDARD.decode(auth).ok())
-        .and_then(|auth| String::from_utf8(auth).ok())
+        .and_then(|a| a.to_str().ok())
+        .and_then(|a| a.strip_prefix("Basic "))
+        .and_then(|a| BASE64_STANDARD.decode(a).ok())
+        .and_then(|a| String::from_utf8(a).ok())
     {
         info!("BASIC AUTH: {login}");
     }
