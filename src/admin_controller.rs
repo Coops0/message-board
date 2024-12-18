@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 pub fn admin_controller(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/user/:id", get(get_user).patch(update_user))
-        .route("/message/:id", patch(update_message))
+        .route("/user/{id}", get(get_user).patch(update_user))
+        .route("/message/{id}", patch(update_message))
         .layer(from_fn_with_state(state, verify_admin_layer))
 }
 

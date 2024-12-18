@@ -2,7 +2,7 @@ use crate::user::User;
 use chrono::{Duration, Utc};
 use rustrict::Type;
 use sqlx::{FromRow, PgPool};
-use std::cell::LazyCell;
+use std::{cell::LazyCell, env};
 
 const TYPE_SCORE_MAP: &[(Type, f32)] = &[
     (Type::PROFANE, -0.1),
@@ -16,15 +16,30 @@ const TYPE_SCORE_MAP: &[(Type, f32)] = &[
     (Type::SEVERE, 15.0)
 ];
 
-const SPAM_THRESHOLD: f32 = 0.4;
-const HARASSMENT_THRESHOLD: f32 = 0.75;
-const AUTO_HIDE_THRESHOLD: f32 = 0.55;
-const SEVERE_CONTENT_THRESHOLD: f32 = 0.85;
-const RATE_LIMIT_MS: i64 = 350;
-const MAX_MSGS_PER_MIN: usize = 12;
-const MAX_UNPUBLISHED: usize = 20;
+struct Thresholds {
+    spam: f32,
+    harassment: f32,
+    auto_hide: f32,
+    severe_content: f32,
+    rate_limit_ms: i64,
+    max_msgs_per_min: usize,
+    max_unpublished: usize
+}
 
-const MAX_TYPE_SCORE: LazyCell<f32> =
+const THRESHOLDS: LazyCell<Thresholds> = LazyCell::new(|| Thresholds {
+    spam: env::var("SPAM_THRESHOLD").ok().and_then(|s| s.parse().ok()).unwrap_or(0.4),
+    harassment: env::var("HARASSMENT_THRESHOLD").ok().and_then(|s| s.parse().ok()).unwrap_or(0.75),
+    auto_hide: env::var("AUTO_HIDE_THRESHOLD").ok().and_then(|s| s.parse().ok()).unwrap_or(0.55),
+    severe_content: env::var("SEVERE_CONTENT_THRESHOLD")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0.85),
+    rate_limit_ms: env::var("RATE_LIMIT_MS").ok().and_then(|s| s.parse().ok()).unwrap_or(350),
+    max_msgs_per_min: env::var("MAX_MSGS_PER_MIN").ok().and_then(|s| s.parse().ok()).unwrap_or(12),
+    max_unpublished: env::var("MAX_UNPUBLISHED").ok().and_then(|s| s.parse().ok()).unwrap_or(20)
+});
+
+const MAX_POSSIBLE_TYPE_SCORE: LazyCell<f32> =
     LazyCell::new(|| TYPE_SCORE_MAP.iter().map(|(_, s)| s).filter(|&&s| s > 0.0).sum());
 
 #[derive(FromRow)]
@@ -41,7 +56,7 @@ pub fn score_content(profanity_type: Type) -> f32 {
             .iter()
             .fold(0.0, |acc, (t, s)| if profanity_type.is(*t) { acc + s } else { acc });
 
-    (raw_score / *MAX_TYPE_SCORE).clamp(0.0, 1.0)
+    (raw_score / *MAX_POSSIBLE_TYPE_SCORE).clamp(0.0, 1.0)
 }
 
 #[derive(Debug)]
@@ -62,7 +77,7 @@ pub async fn censor(
         return CensorOutcome::Allow;
     }
 
-    if user.banned || profanity_type.is(Type::SEVERE) || score >= SEVERE_CONTENT_THRESHOLD {
+    if user.banned || profanity_type.is(Type::SEVERE) || score >= THRESHOLDS.severe_content {
         return CensorOutcome::Hide;
     }
 
@@ -83,7 +98,9 @@ pub async fn censor(
 
     let now = Utc::now();
     if let Some(latest) = messages.first() {
-        if now - latest.created_at < Duration::milliseconds(RATE_LIMIT_MS) && messages.len() >= 3 {
+        if now - latest.created_at < Duration::milliseconds(THRESHOLDS.rate_limit_ms)
+            && messages.len() >= 3
+        {
             return CensorOutcome::Block;
         }
     }
@@ -91,12 +108,12 @@ pub async fn censor(
     let recent_count =
         messages.iter().take(10).filter(|m| now - m.created_at < Duration::minutes(1)).count();
 
-    if recent_count >= MAX_MSGS_PER_MIN {
+    if recent_count >= THRESHOLDS.max_msgs_per_min {
         return CensorOutcome::Hide;
     }
 
     let unpublished = messages.iter().filter(|m| !m.published).count();
-    if unpublished >= MAX_UNPUBLISHED {
+    if unpublished >= THRESHOLDS.max_unpublished {
         return CensorOutcome::Hide;
     }
 
@@ -104,11 +121,11 @@ pub async fn censor(
     let avg_score =
         messages.iter().take(5).map(|m| m.score).sum::<f32>() / 5.0_f32.min(messages.len() as f32);
 
-    if avg_score > HARASSMENT_THRESHOLD && score > SPAM_THRESHOLD {
+    if avg_score > THRESHOLDS.harassment && score > THRESHOLDS.spam {
         return CensorOutcome::Hide;
     }
 
-    if score > AUTO_HIDE_THRESHOLD {
+    if score > THRESHOLDS.auto_hide {
         return CensorOutcome::Hide;
     }
 
