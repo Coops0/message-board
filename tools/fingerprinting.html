@@ -1,0 +1,268 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+</head>
+<body>
+<script>
+    const fCanvas = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const txt = 'BrowserLeaks,com <canvas> Fingerprint';
+        ctx.textBaseline = 'top';
+        ctx.font = '14px \'Arial\'';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#f60';
+        ctx.fillRect(125, 1, 62, 20);
+        ctx.fillStyle = '#069';
+        ctx.fillText(txt, 2, 15);
+        ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+        ctx.fillText(txt, 4, 17);
+        const b64 = canvas.toDataURL().replace('data:image/png;base64,', '');
+        const bin = atob(b64);
+        const crc = () => {
+            let crc = -1;
+            for (let i = 0; i < bin.length; i++) {
+                crc = (crc >>> 8) ^ (bin.charCodeAt(i) & 0xFF);
+            }
+            return ((crc ^ -1) >>> 0).toString(16);
+        };
+
+        return crc();
+    };
+
+    const fFonts = () => {
+        // return JSON.stringify([...document.fonts.entries()].map(([k, v]) => ({
+        //     ascendOverride: k.ascentOverride,
+        //     descendOverride: k.descentOverride,
+        //     family: k.family,
+        //     featureSettings: k.featureSettings,
+        //     stretch: k.stretch,
+        //     style: k.style,
+        //     unicodeRange: k.unicodeRange,
+        //     variant: k.status,
+        //     weight: k.weight,
+        //     display: k.display,
+        //     valuesOfIt: {
+        //         ascendOverride: v.ascentOverride,
+        //         descendOverride: v.descentOverride,
+        //         family: v.family,
+        //         featureSettings: v.featureSettings,
+        //         stretch: v.stretch,
+        //         style: v.style,
+        //         unicodeRange: v.unicodeRange,
+        //         variant: v.status,
+        //         weight: v.weight,
+        //         display: v.display
+        //     }
+        // })));
+        // .map(([k, v]) => JSON.stringify(k) + '/' + JSON.stringify(v))
+        // .join();
+
+        const fontsToLoad = ['Arial', 'Arial Black', 'Comic Sans MS', 'Courier New', 'Georgia', 'Impact', 'Lucida Console', 'Lucida Sans Unicode', 'Palatino Linotype', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana', 'Symbol', 'Webdings', 'Wingdings', 'MS Sans Serif', 'MS Serif'];
+        return JSON.stringify(fontsToLoad.map(f => ({
+            name: f,
+            loaded: document.fonts.check(`12px ${f}`)
+        })));
+    };
+
+    const fPlugins = () => {
+        return JSON.stringify([...navigator.plugins].map(p => ({
+            name: p.name,
+            filename: p.filename,
+            description: p.description,
+            length: p.length,
+            entries: [...p].map(e => ({
+                name: e.name,
+                description: e.description
+            }))
+        })));
+    };
+
+    const fMimeTypes = () => {
+        return JSON.stringify([...navigator.mimeTypes].map(m => ({
+            type: m.type,
+            description: m.description,
+            suffixes: m.suffixes,
+            enabledPlugin: {
+                name: m.enabledPlugin.name,
+                filename: m.enabledPlugin.filename,
+                description: m.enabledPlugin.description,
+                length: m.enabledPlugin.length,
+                entries: [...m.enabledPlugin].map(e => ({
+                    name: e.name,
+                    description: e.description
+                }))
+            }
+        })));
+    };
+
+    const fMediaTypes = async () => {
+        const codecs = [
+            {
+                type: 'record', // or 'transmission'
+                video: {
+                    contentType: 'video/webm;codecs=vp8.0', // valid content type
+                    width: 1920, // width of the video
+                    height: 1080, // height of the video
+                    bitrate: 120000, // number of bits used to encode 1s of video
+                    framerate: 48 // number of frames making up that 1s.
+                }
+            },
+            {
+                type: 'record',
+                video: {
+                    contentType: 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"',
+                    width: 1920,
+                    height: 1080,
+                    bitrate: 1000,
+                    framerate: 30
+                }
+            },
+            {
+                type: 'record',
+                video: {
+                    contentType: 'video/webm; codecs=vp8',
+                    width: 1920,
+                    height: 1080,
+                    bitrate: 800,
+                    framerate: 30
+                }
+            },
+            {
+                type: 'record',
+                video: {
+                    contentType: 'video/webm; codecs=vp9',
+                    width: 7680,
+                    height: 4320,
+                    bitrate: 4000,
+                    framerate: 24
+                }
+            },
+            {
+                type: 'record',
+                video: {
+                    contentType: 'video/mp4; codecs=avc1.420034',
+                    width: 320,
+                    height: 240,
+                    bitrate: 2500,
+                    framerate: 60
+                }
+            },
+            {
+                type: 'record',
+                video: {
+                    contentType: 'video/webm;codecs=vp8.0',
+                    width: 1920,
+                    height: 1080,
+                    bitrate: 120000,
+                    framerate: 48
+                }
+            },
+            {
+                type: 'record',
+                video: {
+                    contentType: 'what da dawg doin',
+                    width: 320,
+                    height: 240,
+                    bitrate: 2500,
+                    framerate: 60
+                }
+            }
+        ];
+
+        const process = (v) => ({
+            type: v?.configuration?.type,
+            supported: v.supported,
+            smooth: v.smooth,
+            powerEfficient: v.powerEfficient,
+            supportedConfigurations: v?.supportedConfigurations
+        });
+
+        return JSON.stringify(codecs.map(async codec => {
+            let encoding;
+            try {
+                encoding = await navigator.mediaCapabilities.encodingInfo(codec);
+                encoding = process(encoding);
+            } catch (e) {
+                console.log(e);
+                encoding = e?.toString() || 'error';
+            }
+
+            let decoding;
+            try {
+                decoding = await navigator.mediaCapabilities.decodingInfo(codec);
+                decoding = process(decoding);
+            } catch (e) {
+                console.log(e);
+                decoding = e?.toString() || 'error';
+            }
+            return {
+                encoding,
+                decoding
+            };
+        }));
+    };
+
+
+    const fWebGL = () => {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (!gl) {
+            return null;
+        }
+
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        return JSON.stringify({
+            vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+            renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+        });
+    };
+
+    const runAll = async () => {
+        try {
+            document.writeln('canvas: ' + fCanvas() + '<br>');
+        } catch (e) {
+            document.writeln('canvas FAIL: ' + e + '<br>');
+        }
+
+        try {
+            document.writeln('fonts: ' + fFonts() + '<br>');
+        } catch (e) {
+            document.writeln('fonts FAIL: ' + e + '<br>');
+        }
+
+        try {
+            document.writeln('plugins: ' + fPlugins() + '<br>');
+        } catch (e) {
+            document.writeln('plugins FAIL: ' + e + '<br>');
+        }
+
+        try {
+            document.writeln('mimeTypes: ' + fMimeTypes() + '<br>');
+        } catch (e) {
+            document.writeln('mimeTypes FAIL: ' + e + '<br>');
+        }
+
+        try {
+            document.writeln('mediaTypes: ' + await fMediaTypes() + '<br>');
+        } catch (e) {
+            document.writeln('mediaTypes FAIL: ' + e + '<br>');
+        }
+
+        try {
+            document.writeln('webgl: ' + fWebGL() + '<br>');
+        } catch (e) {
+            document.writeln('webgl FAIL: ' + e + '<br>');
+        }
+
+        document.writeln('done');
+    };
+
+    runAll();
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-use crate::{fallback, messages::FullMessage, user::User, AppState};
+use crate::{fallback, messages::FullMessage, user::User, util::OptionalExtractor, AppState};
 use axum::{
     extract::{
         ws::{Message, WebSocket}, State, WebSocketUpgrade
@@ -10,8 +10,7 @@ use cbc::{
 use futures::FutureExt;
 use serde_json::json;
 use std::{future::Future, io, pin::Pin, time::Duration};
-use tokio::sync::mpsc::Receiver;
-use tokio::time::timeout;
+use tokio::{sync::mpsc::Receiver, time::timeout};
 use tokio_util::{
     bytes::{BufMut, BytesMut}, codec::Encoder
 };
@@ -19,7 +18,7 @@ use uuid::Uuid;
 
 #[allow(clippy::unused_async)]
 pub async fn ws_route(
-    maybe_ws: Option<WebSocketUpgrade>,
+    OptionalExtractor(maybe_ws): OptionalExtractor<WebSocketUpgrade>,
     owner: User,
     State(AppState { tx, .. }): State<AppState>
 ) -> Response {
@@ -96,7 +95,7 @@ async fn broadcast(sockets: &mut Vec<(WebSocket, User)>, message: &FullMessage, 
 
 async fn prune_dead_sockets(sockets: &mut Vec<(WebSocket, User)>) {
     let before_len = sockets.len();
-    
+
     sockets.retain_mut(|(socket, _)| match socket.recv().now_or_never() {
         // No immediate future response - PASS
         // Immediate future response WITH content - PASS
@@ -110,7 +109,7 @@ async fn prune_dead_sockets(sockets: &mut Vec<(WebSocket, User)>) {
     if before_len == len {
         return;
     }
-    
+
     let send_futures = sockets
         .iter_mut()
         .filter(|(_, user)| user.admin)

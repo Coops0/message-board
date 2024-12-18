@@ -1,3 +1,4 @@
+use crate::AppState;
 use anyhow::Context;
 use askama::Template;
 use axum::{
@@ -36,11 +37,13 @@ pub type WR<T> = Result<T, WE>;
 
 pub struct ClientIp(pub IpAddr);
 
-#[axum::async_trait]
-impl<S> FromRequestParts<S> for ClientIp {
+impl FromRequestParts<AppState> for ClientIp {
     type Rejection = ();
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState
+    ) -> Result<Self, Self::Rejection> {
         Ok(Self(
             parts
                 .headers
@@ -88,28 +91,20 @@ impl<H: Template> IntoResponse for MinifiedHtml<H> {
 
 pub struct MaybeUserAgent(pub Option<String>);
 
-#[axum::async_trait]
-impl<S> FromRequestParts<S> for MaybeUserAgent
-where
-    S: Send + Sync
-{
+impl FromRequestParts<AppState> for MaybeUserAgent {
     type Rejection = Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _: &AppState) -> Result<Self, Self::Rejection> {
         Ok(Self(parts.headers.get(USER_AGENT).and_then(|ua| ua.to_str().ok()).map(ammonia::clean)))
     }
 }
 
 pub struct MessageAndIvFromHeaders(pub Vec<u8>, pub Vec<u8>);
 
-#[axum::async_trait]
-impl<S> FromRequestParts<S> for MessageAndIvFromHeaders
-where
-    S: Send + Sync
-{
+impl FromRequestParts<AppState> for MessageAndIvFromHeaders {
     type Rejection = WE;
 
-    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _: &AppState) -> Result<Self, Self::Rejection> {
         let raw_content_header =
             parts.headers.get("CF-Cache-Identifier").context("failed to get header")?.as_bytes();
 
@@ -151,5 +146,21 @@ pub fn generate_code() -> String {
         unreachable!();
     };
 
-    format!("{first_word}.{second_word}")
+    format!("{first_word}-{second_word}")
+}
+
+pub struct OptionalExtractor<T>(pub Option<T>);
+
+impl<T> FromRequestParts<AppState> for OptionalExtractor<T>
+where
+    T: FromRequestParts<AppState>
+{
+    type Rejection = Infallible;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self(T::from_request_parts(parts, state).await.ok()))
+    }
 }

@@ -5,12 +5,11 @@ use axum::{
         header::{COOKIE, SET_COOKIE}, request::Parts
     }, response::{IntoResponse, Redirect, Response}, RequestPartsExt
 };
-use base64::Engine;
+use base64::{prelude::BASE64_STANDARD, Engine};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
 use std::convert::Infallible;
-use base64::prelude::BASE64_STANDARD;
 use uuid::Uuid;
 
 #[allow(dead_code)]
@@ -58,11 +57,13 @@ impl MaybeLocalUserId {
     }
 }
 
-#[axum::async_trait]
-impl<S> FromRequestParts<S> for MaybeLocalUserId {
+impl FromRequestParts<AppState> for MaybeLocalUserId {
     type Rejection = Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState
+    ) -> Result<Self, Self::Rejection> {
         Ok(Self(
             parts
                 .headers
@@ -77,15 +78,15 @@ impl<S> FromRequestParts<S> for MaybeLocalUserId {
     }
 }
 
-#[axum::async_trait]
 impl FromRequestParts<AppState> for User {
     type Rejection = WE;
 
     async fn from_request_parts(
         parts: &mut Parts,
-        AppState { pool, .. }: &AppState
+        state: &AppState
     ) -> Result<Self, Self::Rejection> {
-        let Ok(MaybeLocalUserId(Some(local_user_id))) = parts.extract::<MaybeLocalUserId>().await
+        let Ok(MaybeLocalUserId(Some(local_user_id))) =
+            parts.extract_with_state::<MaybeLocalUserId, AppState>(state).await
         else {
             return Err(WE(anyhow!("failed to get local user id")));
         };
@@ -96,7 +97,7 @@ impl FromRequestParts<AppState> for User {
             "SELECT * FROM users WHERE id = $1 LIMIT 1",
             local_user_id
         )
-        .fetch_one(pool)
+        .fetch_one(&state.pool)
         .await
         .map_err(Into::into)
     }

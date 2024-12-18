@@ -1,23 +1,23 @@
 mod admin_controller;
+mod censor;
 mod controller;
 mod messages;
 mod user;
 mod util;
 mod ws;
-mod censor;
 
 use crate::{
-    user::{inject_uuid_cookie, User}, util::WebErrorExtensionMarker, ws::WebsocketActorMessage
+    user::{inject_uuid_cookie, User}, util::{OptionalExtractor, WebErrorExtensionMarker}, ws::WebsocketActorMessage
 };
 use axum::{
-    extract::{Request, State}, http::{header::WWW_AUTHENTICATE, HeaderMap, StatusCode}, middleware::{from_fn_with_state, Next}, response::{IntoResponse, Response}, routing::get, RequestExt, Router
+    extract::{Request, State}, http::{header::WWW_AUTHENTICATE, HeaderMap, StatusCode}, middleware::{from_fn_with_state, Next}, response::{IntoResponse, Response}, routing::{any, get}, RequestExt, Router
 };
 use base64::{prelude::BASE64_STANDARD, Engine};
 use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions}, PgPool
 };
 use std::env;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc, mpsc::Sender};
 use tracing::{info, level_filters::LevelFilter, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -48,15 +48,15 @@ async fn main() -> anyhow::Result<()> {
         info!("migrations ran successfully / db connection valid");
     }
 
-    let (tx, rx) = tokio::sync::mpsc::channel(100);
+    let (tx, rx) = mpsc::channel(100);
 
     let state = AppState { pool, tx };
 
     let app = Router::new()
-        .route("/l/:code", get(controller::location_referred_index))
-        .route("/u/:code", get(controller::user_referred_index))
+        .route("/l/{code}", get(controller::location_referred_index))
+        .route("/u/{code}", get(controller::user_referred_index))
         .route("/favicon.ico", get(controller::create_message))
-        .route("/-", get(ws::ws_route))
+        .route("/-", any(ws::ws_route))
         .nest("/admin", admin_controller::admin_controller(AppState::clone(&state)))
         .fallback(inner_fallback)
         .layer(from_fn_with_state(AppState::clone(&state), intercept_web_error))
@@ -69,8 +69,11 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app.into_make_service()).await.map_err(Into::into)
 }
 
-#[allow(clippy::unused_async)]
-async fn inner_fallback(maybe_user: Option<User>, headers: HeaderMap) -> Response {
+async fn inner_fallback(
+    State(_state): State<AppState>, // need this for the user extractor to work
+    OptionalExtractor(maybe_user): OptionalExtractor<User>,
+    headers: HeaderMap
+) -> Response {
     if let Some(user) = maybe_user {
         return inject_uuid_cookie(user.user_referral_redirect(), &user);
     };
@@ -90,8 +93,6 @@ async fn inner_fallback(maybe_user: Option<User>, headers: HeaderMap) -> Respons
 
 #[allow(clippy::unused_async, clippy::missing_panics_doc)]
 pub async fn fallback() -> Response {
-    // Redirect::temporary(original_uri.path())
-    // (StatusCode::INTERNAL_SERVER_ERROR, "nah").into_response()
     let mut res = StatusCode::UNAUTHORIZED.into_response();
     res.headers_mut().insert(WWW_AUTHENTICATE, "Basic".parse().unwrap());
 

@@ -24,9 +24,8 @@ const RATE_LIMIT_MS: i64 = 350;
 const MAX_MSGS_PER_MIN: usize = 12;
 const MAX_UNPUBLISHED: usize = 20;
 
-const MAX_TYPE_SCORE: LazyCell<f32> = LazyCell::new(||
-    TYPE_SCORE_MAP.iter().map(|(_, s)| s).filter(|&&s| s > 0.0).sum()
-);
+const MAX_TYPE_SCORE: LazyCell<f32> =
+    LazyCell::new(|| TYPE_SCORE_MAP.iter().map(|(_, s)| s).filter(|&&s| s > 0.0).sum());
 
 #[derive(FromRow)]
 struct SmallMessage {
@@ -37,11 +36,10 @@ struct SmallMessage {
 }
 
 pub fn score_content(profanity_type: Type) -> f32 {
-    let raw_score = TYPE_SCORE_MAP
-        .iter()
-        .fold(0.0, |acc, (t, s)|
-            if profanity_type.is(*t) { acc + s } else { acc }
-        );
+    let raw_score =
+        TYPE_SCORE_MAP
+            .iter()
+            .fold(0.0, |acc, (t, s)| if profanity_type.is(*t) { acc + s } else { acc });
 
     (raw_score / *MAX_TYPE_SCORE).clamp(0.0, 1.0)
 }
@@ -75,9 +73,9 @@ pub async fn censor(
          WHERE author = $1 ORDER BY created_at DESC LIMIT 20",
         user.id
     )
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
 
     if matches!(messages.first(), Some(m) if m.content == content) {
         return CensorOutcome::Block;
@@ -90,11 +88,8 @@ pub async fn censor(
         }
     }
 
-    let recent_count = messages
-        .iter()
-        .take(10)
-        .filter(|m| now - m.created_at < Duration::minutes(1))
-        .count();
+    let recent_count =
+        messages.iter().take(10).filter(|m| now - m.created_at < Duration::minutes(1)).count();
 
     if recent_count >= MAX_MSGS_PER_MIN {
         return CensorOutcome::Hide;
@@ -106,11 +101,8 @@ pub async fn censor(
     }
 
     #[allow(clippy::cast_precision_loss)]
-    let avg_score = messages
-        .iter()
-        .take(5)
-        .map(|m| m.score)
-        .sum::<f32>() / 5.0_f32.min(messages.len() as f32);
+    let avg_score =
+        messages.iter().take(5).map(|m| m.score).sum::<f32>() / 5.0_f32.min(messages.len() as f32);
 
     if avg_score > HARASSMENT_THRESHOLD && score > SPAM_THRESHOLD {
         return CensorOutcome::Hide;

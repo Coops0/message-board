@@ -1,5 +1,7 @@
 use crate::{
-    censor, censor::{score_content, CensorOutcome}, messages::{FullMessage, StandardMessage}, user::{inject_uuid_cookie, MaybeLocalUserId, User}, util::{generate_code, ClientIp, MaybeUserAgent, MessageAndIvFromHeaders, MinifiedHtml, WR}, ws::WebsocketActorMessage, AppState
+    censor, censor::{score_content, CensorOutcome}, messages::{FullMessage, StandardMessage}, user::{inject_uuid_cookie, MaybeLocalUserId, User}, util::{
+        generate_code, ClientIp, MaybeUserAgent, MessageAndIvFromHeaders, MinifiedHtml, OptionalExtractor, WR
+    }, ws::WebsocketActorMessage, AppState
 };
 use aes::cipher::block_padding::Pkcs7;
 use askama::Template;
@@ -25,7 +27,7 @@ pub async fn user_referred_index(
     State(AppState { pool, tx }): State<AppState>,
     Path(referral_code): Path<String>,
     maybe_local_user_id: MaybeLocalUserId,
-    user: Option<User>,
+    OptionalExtractor(user): OptionalExtractor<User>,
     ClientIp(ip): ClientIp,
     maybe_user_agent: MaybeUserAgent
 ) -> WR<Response> {
@@ -42,11 +44,11 @@ pub async fn location_referred_index(
     State(AppState { pool, .. }): State<AppState>,
     Path(location_code): Path<String>,
     maybe_local_user_id: MaybeLocalUserId,
-    user: Option<User>,
+    OptionalExtractor(maybe_user): OptionalExtractor<User>,
     ClientIp(ip): ClientIp,
     MaybeUserAgent(maybe_user_agent): MaybeUserAgent
 ) -> WR<Response> {
-    if let Some(user) = user {
+    if let Some(user) = maybe_user {
         return Ok(inject_uuid_cookie(user.user_referral_redirect(), &user));
     }
 
@@ -173,7 +175,7 @@ async fn handle_new_user(
 pub async fn create_message(
     State(AppState { pool, tx }): State<AppState>,
     user: User,
-    header_content: Option<MessageAndIvFromHeaders>
+    OptionalExtractor(header_content): OptionalExtractor<MessageAndIvFromHeaders>
 ) -> StatusCode {
     task::spawn(async move {
         let Some(MessageAndIvFromHeaders(encrypted_content_bytes, iv)) = header_content else {
