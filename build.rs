@@ -1,5 +1,7 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
-use rand::distributions::{Alphanumeric, DistString};
+use rand::{
+    distr::{Alphanumeric, DistString}, rng
+};
 use std::{
     fs::{remove_file, File}, io::{Read, Write}, process::Command
 };
@@ -79,8 +81,7 @@ impl StringEncoder {
     fn new(source: String) -> Self {
         let chars = source.chars().collect();
 
-        let decoder_function_name =
-            format!("_{}", Alphanumeric.sample_string(&mut rand::thread_rng(), 8));
+        let decoder_function_name = format!("_{}", Alphanumeric.sample_string(&mut rng(), 8));
 
         let decoder_function = format!(
             "function {decoder_function_name}(s){{return atob(s).split('').map(c=>String.fromCharCode((c.charCodeAt(0)^{XOR_KEY}))).map(c=>String.fromCharCode((c.charCodeAt(0)+256-{ROTATE_KEY})%256)).join('')}}"

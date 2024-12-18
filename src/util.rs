@@ -6,7 +6,7 @@ use axum::{
 };
 use base64::Engine;
 use minify_html::Cfg;
-use rand::prelude::SliceRandom;
+use rand::{prelude::IndexedRandom, rng};
 use std::{cell::LazyCell, convert::Infallible, net::IpAddr};
 use tracing::warn;
 
@@ -136,11 +136,11 @@ const WORDS_STRING_LIST: &str = include_str!("../assets/all_english_words_clean.
 const WORDS_ARRAY: LazyCell<Vec<&str>> = LazyCell::new(|| WORDS_STRING_LIST.lines().collect());
 
 pub fn generate_code() -> String {
-    let mut rng = rand::thread_rng();
-
     #[allow(clippy::borrow_interior_mutable_const)]
-    let words =
-        WORDS_ARRAY.choose_multiple(&mut rng, 2).map(ToString::to_string).collect::<Vec<String>>();
+    let words = WORDS_ARRAY
+        .choose_multiple(&mut rng(), 2)
+        .map(ToString::to_string)
+        .collect::<Vec<String>>();
 
     let [first_word, second_word] = &words[..] else {
         unreachable!();
