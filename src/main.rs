@@ -16,7 +16,6 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions}, PgPool
 };
-use std::env;
 use tokio::sync::{mpsc, mpsc::Sender};
 use tracing::{info, level_filters::LevelFilter, warn};
 use tracing_subscriber::EnvFilter;
@@ -38,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing_subscriber::fmt().with_env_filter(filter).compact().init();
 
-    let pg_connect_opts = env::var("DATABASE_URL")?.parse::<PgConnectOptions>()?;
+    let pg_connect_opts = dotenvy::var("DATABASE_URL")?.parse::<PgConnectOptions>()?;
     let pool = PgPoolOptions::new().connect_lazy_with(pg_connect_opts.clone());
 
     info!("attempting to run migrations with db host {}...", pg_connect_opts.get_host());

@@ -1,6 +1,6 @@
 use crate::{
     censor, censor::{score_content, CensorOutcome}, messages::{FullMessage, StandardMessage}, user::{inject_uuid_cookie, MaybeLocalUserId, User}, util::{
-        generate_code, ClientIp, MaybeUserAgent, MessageAndIvFromHeaders, MinifiedHtml, OptionalExtractor, WR
+        clean, generate_code, ClientIp, MaybeUserAgent, MessageAndIvFromHeaders, MinifiedHtml, OptionalExtractor, WR
     }, ws::WebsocketActorMessage, AppState
 };
 use aes::cipher::block_padding::Pkcs7;
@@ -204,7 +204,7 @@ pub async fn create_message(
             return;
         };
 
-        let content = ammonia::clean(&unclean_content);
+        let content = clean(&unclean_content);
         if content.is_empty() || (!user.admin && content.len() > 320) {
             return;
         }

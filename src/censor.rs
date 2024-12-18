@@ -2,7 +2,7 @@ use crate::user::User;
 use chrono::{Duration, Utc};
 use rustrict::Type;
 use sqlx::{FromRow, PgPool};
-use std::{cell::LazyCell, env};
+use std::{cell::LazyCell, str::FromStr};
 
 const TYPE_SCORE_MAP: &[(Type, f32)] = &[
     (Type::PROFANE, -0.1),
@@ -26,17 +26,18 @@ struct Thresholds {
     max_unpublished: usize
 }
 
+fn env_or<T: FromStr>(name: &str, default: T) -> T {
+    dotenvy::var(name).ok().and_then(|s| s.parse().ok()).unwrap_or(default)
+}
+
 const THRESHOLDS: LazyCell<Thresholds> = LazyCell::new(|| Thresholds {
-    spam: env::var("SPAM_THRESHOLD").ok().and_then(|s| s.parse().ok()).unwrap_or(0.4),
-    harassment: env::var("HARASSMENT_THRESHOLD").ok().and_then(|s| s.parse().ok()).unwrap_or(0.75),
-    auto_hide: env::var("AUTO_HIDE_THRESHOLD").ok().and_then(|s| s.parse().ok()).unwrap_or(0.55),
-    severe_content: env::var("SEVERE_CONTENT_THRESHOLD")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0.85),
-    rate_limit_ms: env::var("RATE_LIMIT_MS").ok().and_then(|s| s.parse().ok()).unwrap_or(350),
-    max_msgs_per_min: env::var("MAX_MSGS_PER_MIN").ok().and_then(|s| s.parse().ok()).unwrap_or(12),
-    max_unpublished: env::var("MAX_UNPUBLISHED").ok().and_then(|s| s.parse().ok()).unwrap_or(20)
+    spam: env_or("SPAM_THRESHOLD", 0.4),
+    harassment: env_or("HARASSMENT_THRESHOLD", 0.75),
+    auto_hide: env_or("AUTO_HIDE_THRESHOLD", 0.55),
+    severe_content: env_or("SEVERE_CONTENT_THRESHOLD", 0.85),
+    rate_limit_ms: env_or("RATE_LIMIT_MS", 350),
+    max_msgs_per_min: env_or("MAX_MSGS_PER_MIN", 12),
+    max_unpublished: env_or("MAX_UNPUBLISHED", 20)
 });
 
 const MAX_POSSIBLE_TYPE_SCORE: LazyCell<f32> =

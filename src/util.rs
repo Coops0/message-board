@@ -35,6 +35,10 @@ impl IntoResponse for WE {
 
 pub type WR<T> = Result<T, WE>;
 
+pub fn clean(content: &str) -> String {
+    ammonia::Builder::empty().clean(content).to_string()
+}
+
 pub struct ClientIp(pub IpAddr);
 
 impl FromRequestParts<AppState> for ClientIp {
@@ -95,7 +99,7 @@ impl FromRequestParts<AppState> for MaybeUserAgent {
     type Rejection = Infallible;
 
     async fn from_request_parts(parts: &mut Parts, _: &AppState) -> Result<Self, Self::Rejection> {
-        Ok(Self(parts.headers.get(USER_AGENT).and_then(|ua| ua.to_str().ok()).map(ammonia::clean)))
+        Ok(Self(parts.headers.get(USER_AGENT).and_then(|ua| ua.to_str().ok()).map(clean)))
     }
 }
 
