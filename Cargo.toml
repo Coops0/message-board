@@ -3,6 +3,10 @@ name = "message-board"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "app"
+path = "src/main.rs"
+
 [dependencies]
 axum = { version = "0.8.0-rc.1", features = ["original-uri", "ws"] }
 tokio = { version = "1.42.0", features = ["full"] }

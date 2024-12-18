@@ -14,8 +14,8 @@ RUN cargo build --release
 
 FROM gcr.io/distroless/cc-debian12:nonroot
 WORKDIR /app
-COPY --from=builder /app/target/release/message-board /usr/local/bin/
+COPY --from=builder /app/target/release/app /usr/local/bin/app
 
 EXPOSE 5000
 USER nonroot
-ENTRYPOINT ["/usr/local/bin/message-board"]
+ENTRYPOINT ["/usr/local/bin/app"]
