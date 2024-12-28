@@ -42,7 +42,7 @@ pub fn clean(content: &str) -> String {
 pub struct ClientIp(pub IpAddr);
 
 impl FromRequestParts<AppState> for ClientIp {
-    type Rejection = ();
+    type Rejection = Infallible;
 
     async fn from_request_parts(
         parts: &mut Parts,
