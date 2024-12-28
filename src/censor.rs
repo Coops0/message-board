@@ -40,11 +40,16 @@ const THRESHOLDS: LazyCell<Thresholds> = LazyCell::new(|| Thresholds {
     max_unpublished: env_or("MAX_UNPUBLISHED", 20)
 });
 
-const MAX_POSSIBLE_TYPE_SCORE: LazyCell<f32> =
-    LazyCell::new(|| TYPE_SCORE_MAP.iter().map(|(_, s)| s).filter(|&&s| s > 0.0).sum());
+const SCORE_UPPER_BOUND: LazyCell<f32> = LazyCell::new(|| {
+    let mut threshes = TYPE_SCORE_MAP.iter().map(|(_, s)| *s).collect::<Vec<_>>();
+
+    threshes.sort_by(|a, b| b.total_cmp(a));
+
+    threshes.iter().take(2).sum()
+});
 
 #[derive(FromRow)]
-struct SmallMessage {
+struct PartialMessage {
     content: String,
     published: bool,
     score: f32,
@@ -57,7 +62,7 @@ pub fn score_content(profanity_type: Type) -> f32 {
             .iter()
             .fold(0.0, |acc, (t, s)| if profanity_type.is(*t) { acc + s } else { acc });
 
-    (raw_score / *MAX_POSSIBLE_TYPE_SCORE).clamp(0.0, 1.0)
+    (raw_score / *SCORE_UPPER_BOUND).clamp(0.0, 1.0)
 }
 
 #[derive(Debug)]
@@ -83,7 +88,7 @@ pub async fn censor(
     }
 
     let messages = sqlx::query_as!(
-        SmallMessage,
+        PartialMessage,
         // language=postgresql
         "SELECT content, published, score, created_at FROM messages
          WHERE author = $1 ORDER BY created_at DESC LIMIT 20",
