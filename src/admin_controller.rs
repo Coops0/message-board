@@ -27,7 +27,7 @@ async fn verify_admin_layer(
         }
     }
 
-    fallback().await
+    fallback()
 }
 
 async fn get_user(

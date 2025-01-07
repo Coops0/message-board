@@ -88,11 +88,11 @@ async fn inner_fallback(
         info!("BASIC AUTH: {login}");
     }
 
-    fallback().await
+    fallback()
 }
 
-#[allow(clippy::unused_async, clippy::missing_panics_doc)]
-pub async fn fallback() -> Response {
+#[allow(clippy::missing_panics_doc)]
+pub fn fallback() -> Response {
     let mut res = StatusCode::UNAUTHORIZED.into_response();
     res.headers_mut().insert(WWW_AUTHENTICATE, "Basic".parse().unwrap());
 
@@ -112,7 +112,7 @@ async fn intercept_web_error(
     }
 
     let Some(user) = maybe_user else {
-        return fallback().await;
+        return fallback();
     };
 
     inject_uuid_cookie(user.user_referral_redirect(), &user)

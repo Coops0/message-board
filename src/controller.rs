@@ -27,11 +27,11 @@ pub async fn user_referred_index(
     State(AppState { pool, tx }): State<AppState>,
     Path(referral_code): Path<String>,
     maybe_local_user_id: MaybeLocalUserId,
-    OptionalExtractor(user): OptionalExtractor<User>,
+    OptionalExtractor(maybe_user): OptionalExtractor<User>,
     ClientIp(ip): ClientIp,
     maybe_user_agent: MaybeUserAgent
 ) -> WR<Response> {
-    match user {
+    match maybe_user {
         Some(user) => handle_existing_user(&pool, tx, user, referral_code).await,
         None => {
             handle_new_user(&pool, maybe_local_user_id, ip, maybe_user_agent, referral_code).await

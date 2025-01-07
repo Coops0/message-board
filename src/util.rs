@@ -1,4 +1,4 @@
-use crate::AppState;
+use crate::{fallback, AppState};
 use anyhow::Context;
 use askama::Template;
 use axum::{
@@ -169,5 +169,21 @@ where
         state: &AppState
     ) -> Result<Self, Self::Rejection> {
         Ok(Self(T::from_request_parts(parts, state).await.ok()))
+    }
+}
+
+pub struct FallibleExtractor<T>(pub T);
+
+impl<T> FromRequestParts<AppState> for FallibleExtractor<T>
+where
+    T: FromRequestParts<AppState>
+{
+    type Rejection = Response;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState
+    ) -> Result<Self, Self::Rejection> {
+        T::from_request_parts(parts, state).await.map_err(|_| fallback()).map(Self)
     }
 }

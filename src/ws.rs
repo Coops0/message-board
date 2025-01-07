@@ -1,7 +1,7 @@
-use crate::{fallback, messages::FullMessage, user::User, util::OptionalExtractor, AppState};
+use crate::{messages::FullMessage, user::User, util::FallibleExtractor, AppState};
 use axum::{
     extract::{
-        ws::{Message, WebSocket}, State, WebSocketUpgrade
+        ws::{Message, Utf8Bytes, WebSocket}, State, WebSocketUpgrade
     }, response::Response
 };
 use cbc::{
@@ -18,14 +18,10 @@ use uuid::Uuid;
 
 #[allow(clippy::unused_async)]
 pub async fn ws_route(
-    OptionalExtractor(maybe_ws): OptionalExtractor<WebSocketUpgrade>,
+    FallibleExtractor(ws): FallibleExtractor<WebSocketUpgrade>,
     owner: User,
     State(AppState { tx, .. }): State<AppState>
 ) -> Response {
-    let Some(ws) = maybe_ws else {
-        return fallback().await;
-    };
-
     ws.on_upgrade(move |socket| async move {
         let _ = tx.send(WebsocketActorMessage::Socket { socket, owner }).await;
     })
@@ -65,7 +61,9 @@ pub async fn socket_owner_actor(mut rx: Receiver<WebsocketActorMessage>) {
                     continue;
                 };
 
-                let _ = socket.send(Message::Text(json!({"count": len}).to_string())).await;
+                let _ = socket
+                    .send(Message::Text(Utf8Bytes::from(json!({"count": len}).to_string())))
+                    .await;
             }
         }
     }
@@ -114,9 +112,9 @@ async fn prune_dead_sockets(sockets: &mut Vec<(WebSocket, User)>) {
         .iter_mut()
         .filter(|(_, user)| user.admin)
         .map(|(socket, _)| {
-            Box::pin(
-                async move { socket.send(Message::Text(json!({"count": len}).to_string())).await }
-            ) as SendMessageFuture
+            Box::pin(async move {
+                socket.send(Message::Text(Utf8Bytes::from(json!({"count": len}).to_string()))).await
+            }) as SendMessageFuture
         })
         .collect::<Vec<_>>();
 
@@ -205,7 +203,7 @@ impl FullMessage {
             return if is_update {
                 None
             } else {
-                Some(Message::Text(serde_json::to_string(&self).ok()?))
+                Some(Message::Text(Utf8Bytes::from(serde_json::to_string(&self).ok()?)))
             };
         }
 
@@ -218,6 +216,6 @@ impl FullMessage {
         }
         .ok()?;
 
-        Some(Message::Binary(body.freeze().to_vec()))
+        Some(Message::Binary(body.freeze()))
     }
 }

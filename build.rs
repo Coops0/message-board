@@ -1,9 +1,12 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use rand::{
-    distr::{Alphanumeric, DistString}, rng
+    distr::{Alphanumeric, DistString},
+    rng,
 };
 use std::{
-    fs::{remove_file, File}, io::{Read, Write}, process::Command
+    fs::{remove_file, File},
+    io::{Read, Write},
+    process::Command,
 };
 
 #[cfg(debug_assertions)]
@@ -32,7 +35,7 @@ fn main() {
             "-m",
             "--toplevel",
             "-o",
-            "assets/user-script.min.js"
+            "assets/user-script.min.js",
         ])
         .status()
         .unwrap();
@@ -55,7 +58,7 @@ const XOR_KEY: u8 = 0x7B;
 
 struct StringToken {
     content: String,
-    span: std::ops::Range<usize>
+    span: std::ops::Range<usize>,
 }
 
 impl StringToken {
@@ -74,7 +77,7 @@ struct StringEncoder {
     offset: usize,
 
     decoder_function_name: String,
-    decoder_function: String
+    decoder_function: String,
 }
 
 impl StringEncoder {
@@ -95,7 +98,7 @@ impl StringEncoder {
             offset: 0,
 
             decoder_function_name,
-            decoder_function
+            decoder_function,
         }
     }
 
@@ -181,7 +184,7 @@ impl Iterator for StringEncoder {
                     (c, false) if c == current_char => {
                         let token = StringToken {
                             content: self.source[start..=self.position].to_string(),
-                            span: start..self.position
+                            span: start..self.position,
                         };
                         self.position += 1;
                         return Some(token);
